@@ -1,5 +1,7 @@
 # Becker cover support for Home Assistant
 
+> Maintained fork of the original Becker integration, focused on current Home Assistant releases, UI configuration and reliable Centronic USB communication.
+
 A native Home Assistant component to control Becker RF shutters with a Becker Centronic USB stick.
 It works with the Becker ***Centronic USB Stick*** with the Becker order number ***4035 200 041 0*** and ***4035 000 041 0***.
 It works for the Becker ***Centronic*** roller shutters, blinds and sun protection as well as for Roto roof windows with RF remotes.  
@@ -20,9 +22,9 @@ There are three ways to track position of the cover:
 
 # Installation
 
-1. Add [this](https://github.com/RainerStaude/hass-becker-component-plus-pybecker) repository to HACS custom
+1. Add [this](https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker) repository to HACS custom
    repositories (preferred).  
-   Alternatively copy the files of this [this](https://github.com/RainerStaude/hass-becker-component-plus-pybecker)
+   Alternatively copy the files of this [this](https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker)
    repository into the custom_components folder of your HA configuration directory.  
 2. Plug the Becker USB stick into any free USB port. It is a good practice to add a short USB extension cable
    and place the Becker USB stick away from other RF sources.  
@@ -62,6 +64,14 @@ Use it as an automation trigger — trigger on the entity and filter by
 `unit_id`/`channel` to react to a specific wall remote — or just watch it to see
 which remotes the stick is hearing (handy for discovering a remote's id). It
 works for any remote in range, including ones not configured as covers.
+
+## Communication settings
+
+Open **Settings → Devices & Services → Becker → Configure → Communication** to tune the RF command queue and retry behavior.
+
+The defaults are intended for normal installations. Increasing the queue size can help when many commands are issued in a short burst. Retry count and delay control how temporary queue saturation is handled.
+
+The communicator also survives transient USB disconnects. When the USB stick reappears, the serial connection is rebuilt automatically. A command that was already dequeued when a transient write failure occurs is kept pending and retried after reconnect instead of being silently dropped.
 
 ## Import / Export the shutter database
 
@@ -364,6 +374,6 @@ If you require additional help have a look at the
 Becker integration: 
 [Integrating Becker Motors](https://community.home-assistant.io/t/integrating-becker-motors-in-to-hassio/151705)
 Another way is to open a new issue on 
-[GitHub](https://github.com/RainerStaude/hass-becker-component-plus-pybecker/issues).
+[GitHub](https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker/issues).
 
 To disable debug log for becker set the level back from `debug` to `info`.
