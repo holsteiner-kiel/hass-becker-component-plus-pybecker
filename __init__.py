@@ -17,7 +17,13 @@ from homeassistant.helpers.typing import ConfigType
 from .const import (
     COMMANDS,
     CONF_CHANNEL,
+    CONF_COMMAND_RETRY_DELAY,
+    CONF_COMMAND_RETRY_MAX,
+    CONF_QUEUE_SIZE,
     CONF_UNIT,
+    DEFAULT_COMMAND_RETRY_DELAY,
+    DEFAULT_COMMAND_RETRY_MAX,
+    DEFAULT_QUEUE_SIZE,
     DOMAIN,
     MANUFACTURER,
     PLATFORMS,
@@ -145,6 +151,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: BeckerConfigEntry) -> bo
                 init_dummy=False,
                 db_filename=filename,
                 callback=partial(_packet_callback, hass, entry.entry_id),
+                queue_size=entry.options.get(CONF_QUEUE_SIZE, DEFAULT_QUEUE_SIZE),
+                retry_max=entry.options.get(
+                    CONF_COMMAND_RETRY_MAX, DEFAULT_COMMAND_RETRY_MAX
+                ),
+                retry_delay=entry.options.get(
+                    CONF_COMMAND_RETRY_DELAY, DEFAULT_COMMAND_RETRY_DELAY
+                ),
             )
         )
     except BeckerConnectionError as err:
