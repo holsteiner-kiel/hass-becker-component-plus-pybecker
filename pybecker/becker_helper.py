@@ -246,12 +246,18 @@ class BeckerCommunicator(threading.Thread):
         device: str,
         callback: Callable[[re.Match], Any] = None,
         deamon: bool = True,
+        queue_size: int = 100,
+        retry_max: int = 3,
+        retry_delay: float = 1.0,
     ) -> None:
-        '''Initialize communicator'''
+        '''Initialize communicator.'''
         super().__init__(daemon=deamon)
+        self._queue_size = queue_size
+        self._retry_max = retry_max
+        self._retry_delay = retry_delay
         # Setup threading stop event and queue
         self._stop_flag = threading.Event()
-        self._write_queue = queue.Queue(maxsize=100)
+        self._write_queue = queue.Queue(maxsize=queue_size)
         # Setup callback
         self._callback = callback
         # Setup interface
@@ -336,18 +342,53 @@ class BeckerCommunicator(threading.Thread):
                 )
 
     def send(self, packet) -> None:
-        """Send packet."""
+        """Queue a packet, retrying temporary queue saturation."""
         if not self.is_alive():
             raise BeckerConnectionError(
                 "Error BeckerCommunicator thread not alive."
             )
-        try:
-            self._write_queue.put(packet, timeout=5)
-        except queue.Full as err:
-            self.stop()
-            raise BeckerConnectionError(
-                "Error sending packet. BeckerCommunicator thread not responding."
-            ) from err
+
+        queue_size = self._write_queue.qsize()
+        queue_percent = queue_size / self._queue_size * 100
+        if queue_percent >= 80:
+            _LOGGER.warning(
+                "RF command queue is %.0f%% full (%d/%d)",
+                queue_percent,
+                queue_size,
+                self._queue_size,
+            )
+        elif queue_percent >= 50:
+            _LOGGER.info(
+                "RF command queue is %.0f%% full (%d/%d)",
+                queue_percent,
+                queue_size,
+                self._queue_size,
+            )
+
+        attempts = self._retry_max + 1
+        for attempt in range(attempts):
+            try:
+                self._write_queue.put(packet, timeout=5)
+                if attempt:
+                    _LOGGER.info(
+                        "RF command queued after %d retry attempt(s)", attempt
+                    )
+                return
+            except queue.Full as err:
+                if attempt >= self._retry_max:
+                    raise BeckerConnectionError(
+                        "RF command queue is full after "
+                        f"{self._retry_max} retry attempt(s) "
+                        f"({self._queue_size} queued commands)."
+                    ) from err
+                _LOGGER.warning(
+                    "RF command queue full; retrying in %.1fs "
+                    "(attempt %d/%d)",
+                    self._retry_delay,
+                    attempt + 1,
+                    self._retry_max,
+                )
+                time.sleep(self._retry_delay)
 
     def close(self) -> None:
         """Stop thread and close device"""
