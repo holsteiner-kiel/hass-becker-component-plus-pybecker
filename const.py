@@ -57,6 +57,14 @@ CONF_TILT_INTERMEDIATE = 'tilt_intermediate'
 CONF_TILT_BLIND = 'tilt_blind'
 CONF_TILT_TIME_BLIND = 'tilt_time_blind'
 
+# Communication queue / retry settings
+CONF_QUEUE_SIZE = "queue_size"
+CONF_COMMAND_RETRY_MAX = "command_retry_max"
+CONF_COMMAND_RETRY_DELAY = "command_retry_delay"
+DEFAULT_QUEUE_SIZE = 100
+DEFAULT_COMMAND_RETRY_MAX = 3
+DEFAULT_COMMAND_RETRY_DELAY = 1.0
+
 TILT_FUNCTIONALITY = 'tilt_functionality'
 
 CLOSED_POSITION = 0
