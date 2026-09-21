@@ -270,7 +270,7 @@ class BeckerCommunicator(threading.Thread):
         '''Run BeckerCommunicator thread.'''
         _LOGGER.debug('BeckerCommunicator thread started.')
         callback_valid = False if self._callback is None else True    # pylint: disable=simplifiable-if-expression
-        packet = None
+        pending_packet = None
         while True:
             # Read bytes from serial port
             if callback_valid:
@@ -285,27 +285,39 @@ class BeckerCommunicator(threading.Thread):
                     self._timeout = time.time() + COMMUNICATION_TIMEOUT
                 self._read_buffer += data
                 self._parse()
-            # Get packet from write queue if timeout expired
+
+            # Send one pending packet at a time once the protocol timeout has
+            # expired. Keep a failed packet pending so a transient USB/network
+            # failure cannot silently drop a rolling-code command.
             if self._timeout < time.time():
-                try:
-                    packet = self._write_queue.get(block=False)
-                except queue.Empty:
-                    pass
-                else:
+                if pending_packet is None:
                     try:
-                        self._connection.write(packet)
+                        pending_packet = self._write_queue.get(block=False)
+                    except queue.Empty:
+                        pass
+
+                if pending_packet is not None:
+                    try:
+                        self._connection.write(pending_packet)
                     except Exception as err:   # pylint: disable=broad-except
                         _LOGGER.warning(
-                            "BeckerCommunicator failed to send packet (%s). Connection will be retried.", err
+                            "BeckerCommunicator failed to send packet (%s). "
+                            "Keeping it pending for retry after reconnect.",
+                            err,
                         )
                     else:
                         self._timeout = time.time() + COMMUNICATION_TIMEOUT
-                        self._log(packet, "Sent packet: ")
+                        self._log(pending_packet, "Sent packet: ")
+                        pending_packet = None
 
             # Sleep for thread switch and wait time between packets
             time.sleep(0.1)
-            # Ensure all packets in queue are send before thread is stopped
-            if self._stop_flag.is_set() and self._write_queue.empty():
+            # Ensure all queued and pending packets are sent before stopping.
+            if (
+                self._stop_flag.is_set()
+                and self._write_queue.empty()
+                and pending_packet is None
+            ):
                 break
         _LOGGER.debug('BeckerCommunicator thread stopped.')
 
