@@ -239,16 +239,13 @@ class BeckerConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
 
         schema = vol.Schema(
-            {vol.Required(CONF_DEVICE, default=DEFAULT_DEVICE): SerialPortSelector()}
+            {
+                vol.Required(CONF_DEVICE, default=DEFAULT_DEVICE): SerialPortSelector(),
+                vol.Optional(
+                    CONF_FILENAME, default=DEFAULT_DB_FILENAME
+                ): TextSelector(),
+            }
         )
-        if self.show_advanced_options:
-            schema = schema.extend(
-                {
-                    vol.Optional(
-                        CONF_FILENAME, default=DEFAULT_DB_FILENAME
-                    ): TextSelector()
-                }
-            )
         return self.async_show_form(
             step_id=CONNECTION_TYPE_SERIAL, data_schema=schema, errors=errors
         )
@@ -297,14 +294,13 @@ class BeckerConfigFlow(ConfigFlow, domain=DOMAIN):
                 ),
             }
         )
-        if self.show_advanced_options:
-            schema = schema.extend(
-                {
-                    vol.Optional(
-                        CONF_FILENAME, default=DEFAULT_DB_FILENAME
-                    ): TextSelector()
-                }
-            )
+        schema = schema.extend(
+            {
+                vol.Optional(
+                    CONF_FILENAME, default=DEFAULT_DB_FILENAME
+                ): TextSelector()
+            }
+        )
         return self.async_show_form(
             step_id=CONNECTION_TYPE_NETWORK, data_schema=schema, errors=errors
         )
