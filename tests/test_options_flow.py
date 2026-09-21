@@ -13,7 +13,10 @@ from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.becker.const import (
+    CONF_COMMAND_RETRY_DELAY,
+    CONF_COMMAND_RETRY_MAX,
     CONF_CONNECTION_TYPE,
+    CONF_QUEUE_SIZE,
     CONNECTION_TYPE_SERIAL,
     DOMAIN,
 )
@@ -52,10 +55,37 @@ async def test_options_menu_lists_actions(
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] is FlowResultType.MENU
     assert set(result["menu_options"]) == {
+        "communication_settings",
         "export_json",
         "import_json",
         "export_db",
         "import_db",
+    }
+
+
+async def test_communication_settings_are_saved(
+    hass: HomeAssistant, mock_becker, real_db: str
+) -> None:
+    entry = await _setup(hass, real_db, mock_becker)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    form = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "communication_settings"}
+    )
+    assert form["type"] is FlowResultType.FORM
+
+    result = await hass.config_entries.options.async_configure(
+        form["flow_id"],
+        {
+            CONF_QUEUE_SIZE: 250,
+            CONF_COMMAND_RETRY_MAX: 5,
+            CONF_COMMAND_RETRY_DELAY: 0.5,
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options == {
+        CONF_QUEUE_SIZE: 250,
+        CONF_COMMAND_RETRY_MAX: 5,
+        CONF_COMMAND_RETRY_DELAY: 0.5,
     }
 
 
