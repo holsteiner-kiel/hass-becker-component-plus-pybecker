@@ -94,21 +94,30 @@ class BeckerConnection():
     """
     Connection class for Becker centronic USB Stick.
     """
+    # Minimum seconds between full teardown/rebuild attempts of the
+    # underlying pyserial object once it gets stuck failing to open.
+    RECONNECT_REBUILD_INTERVAL = 10
+
     def __init__(self, device: str) -> None:
         """Initialize connection."""
         self._device, self._is_serial = self._validate_device(device)
+        self._connection = self._build_serial()
+        self._last_rebuild_attempt = 0.0
+        self._open()
+
+    def _build_serial(self):
+        """Create a fresh pyserial Serial object for the configured device."""
         try:
-            self._connection = serial.serial_for_url(
+            return serial.serial_for_url(
                 self.device,
                 baudrate=115200,
                 timeout=0,
-                do_not_open = True
+                do_not_open=True
             )
         except serial.SerialException as err:
             raise BeckerConnectionError(
                 "Error when trying to establish connection using {}.".format(self.device)
             ) from err
-        self._open()
 
     @property
     def is_serial(self) -> bool:
@@ -125,12 +134,13 @@ class BeckerConnection():
         self._open()
         try:
             self._connection.write(packet)
-        except serial.SerialException:
-            if self._is_serial:
-                raise
-            # Re-connect on error
+        except Exception:
+            # Re-connect on error (covers SerialException and raw OSError on unplug)
             _LOGGER.debug("Write failed. Try to close and re-open connection to %s", self.device)
-            self._connection.close()
+            try:
+                self._connection.close()
+            except Exception:
+                pass
             self._open()
             self._connection.write(packet)
 
@@ -140,12 +150,13 @@ class BeckerConnection():
         self._open()
         try:
             packet = self._connection.read(1024)
-        except serial.SerialException:
-            if self._is_serial:
-                raise
-            # Re-connect on error
+        except Exception:
+            # Re-connect on error (covers SerialException and raw OSError on unplug)
             _LOGGER.debug("Read failed. Try to close and re-open connection to %s", self.device)
-            self._connection.close()
+            try:
+                self._connection.close()
+            except Exception:
+                pass
         return packet
 
     def _open(self) -> None:
@@ -155,12 +166,42 @@ class BeckerConnection():
                 self._connection.open()
             except serial.SerialException as err:
                 if self.is_serial:
-                    raise BeckerConnectionError(
-                        "Error when trying to establish connection using {}.".format(self.device)
-                    ) from err
-                _LOGGER.error("Establish connection to %s failed!", self.device)
-            except:     # pylint: disable=bare-except
-                _LOGGER.error("Establish connection to %s failed!", self.device)
+                    _LOGGER.warning(
+                        "Establish connection to %s failed, will retry: %s", self.device, err
+                    )
+                    self._maybe_rebuild()
+                else:
+                    _LOGGER.error("Establish connection to %s failed!", self.device)
+            except Exception as err:     # pylint: disable=broad-except
+                _LOGGER.warning("Establish connection to %s failed, will retry: %s", self.device, err)
+                self._maybe_rebuild()
+
+    def _maybe_rebuild(self) -> None:
+        """Periodically tear down and recreate the underlying pyserial object.
+
+        A stale pyserial Serial instance can end up wedged after the
+        OS-level device path disappears and reappears (e.g. the USB stick
+        was power-cycled). Simply retrying .open() on the same object can
+        fail to recover even once the device is back, because the object
+        may be holding onto stale internal file-descriptor state. Rebuilding
+        it from scratch periodically works around this without requiring a
+        full Home Assistant restart.
+        """
+        now = time.time()
+        if now - self._last_rebuild_attempt < self.RECONNECT_REBUILD_INTERVAL:
+            return
+        self._last_rebuild_attempt = now
+        try:
+            self._connection.close()
+        except Exception:  # pylint: disable=broad-except
+            pass
+        try:
+            new_connection = self._build_serial()
+        except BeckerConnectionError as err:
+            _LOGGER.debug("Rebuild of serial connection to %s failed: %s", self.device, err)
+            return
+        self._connection = new_connection
+        _LOGGER.info("Rebuilt serial connection object for %s after repeated failures.", self.device)
 
     def close(self) -> None:
         """Close connection"""
@@ -205,12 +246,18 @@ class BeckerCommunicator(threading.Thread):
         device: str,
         callback: Callable[[re.Match], Any] = None,
         deamon: bool = True,
+        queue_size: int = 100,
+        retry_max: int = 3,
+        retry_delay: float = 1.0,
     ) -> None:
-        '''Initialize communicator'''
+        '''Initialize communicator.'''
         super().__init__(daemon=deamon)
+        self._queue_size = queue_size
+        self._retry_max = retry_max
+        self._retry_delay = retry_delay
         # Setup threading stop event and queue
         self._stop_flag = threading.Event()
-        self._write_queue = queue.Queue(maxsize=100)
+        self._write_queue = queue.Queue(maxsize=queue_size)
         # Setup callback
         self._callback = callback
         # Setup interface
@@ -227,7 +274,13 @@ class BeckerCommunicator(threading.Thread):
         while True:
             # Read bytes from serial port
             if callback_valid:
-                data = self._connection.read()
+                try:
+                    data = self._connection.read()
+                except Exception as err:   # pylint: disable=broad-except
+                    _LOGGER.warning(
+                        "BeckerCommunicator read failed (%s). Will keep retrying without killing the thread.", err
+                    )
+                    data = bytes()
                 if len(data) > 0:
                     self._timeout = time.time() + COMMUNICATION_TIMEOUT
                 self._read_buffer += data
@@ -239,9 +292,15 @@ class BeckerCommunicator(threading.Thread):
                 except queue.Empty:
                     pass
                 else:
-                    self._connection.write(packet)
-                    self._timeout = time.time() + COMMUNICATION_TIMEOUT
-                    self._log(packet, "Sent packet: ")
+                    try:
+                        self._connection.write(packet)
+                    except Exception as err:   # pylint: disable=broad-except
+                        _LOGGER.warning(
+                            "BeckerCommunicator failed to send packet (%s). Connection will be retried.", err
+                        )
+                    else:
+                        self._timeout = time.time() + COMMUNICATION_TIMEOUT
+                        self._log(packet, "Sent packet: ")
 
             # Sleep for thread switch and wait time between packets
             time.sleep(0.1)
@@ -283,18 +342,53 @@ class BeckerCommunicator(threading.Thread):
                 )
 
     def send(self, packet) -> None:
-        """Send packet."""
+        """Queue a packet, retrying temporary queue saturation."""
         if not self.is_alive():
             raise BeckerConnectionError(
                 "Error BeckerCommunicator thread not alive."
             )
-        try:
-            self._write_queue.put(packet, timeout=5)
-        except queue.Full as err:
-            self.stop()
-            raise BeckerConnectionError(
-                "Error sending packet. BeckerCommunicator thread not responding."
-            ) from err
+
+        queue_size = self._write_queue.qsize()
+        queue_percent = queue_size / self._queue_size * 100
+        if queue_percent >= 80:
+            _LOGGER.warning(
+                "RF command queue is %.0f%% full (%d/%d)",
+                queue_percent,
+                queue_size,
+                self._queue_size,
+            )
+        elif queue_percent >= 50:
+            _LOGGER.info(
+                "RF command queue is %.0f%% full (%d/%d)",
+                queue_percent,
+                queue_size,
+                self._queue_size,
+            )
+
+        attempts = self._retry_max + 1
+        for attempt in range(attempts):
+            try:
+                self._write_queue.put(packet, timeout=5)
+                if attempt:
+                    _LOGGER.info(
+                        "RF command queued after %d retry attempt(s)", attempt
+                    )
+                return
+            except queue.Full as err:
+                if attempt >= self._retry_max:
+                    raise BeckerConnectionError(
+                        "RF command queue is full after "
+                        f"{self._retry_max} retry attempt(s) "
+                        f"({self._queue_size} queued commands)."
+                    ) from err
+                _LOGGER.warning(
+                    "RF command queue full; retrying in %.1fs "
+                    "(attempt %d/%d)",
+                    self._retry_delay,
+                    attempt + 1,
+                    self._retry_max,
+                )
+                time.sleep(self._retry_delay)
 
     def close(self) -> None:
         """Stop thread and close device"""

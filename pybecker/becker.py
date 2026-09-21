@@ -46,7 +46,8 @@ class Becker:
         Use this class to perform operations on your Becker Shutter using a centronic USB Stick
         This class will as well maintain a call increment in an internal database
     """
-    def __init__(self, device_name=None, init_dummy=False, db_filename=None, callback=None):
+    def __init__(self, device_name=None, init_dummy=False, db_filename=None, callback=None,
+                 queue_size=100, retry_max=3, retry_delay=1.0):
         """
             Create a new instance of the Becker controller
 
@@ -55,7 +56,13 @@ class Becker:
             :type device_name: str
             :type init_dummy: bool
         """
-        self.communicator = BeckerCommunicator(device_name, callback)
+        self.communicator = BeckerCommunicator(
+            device_name,
+            callback,
+            queue_size=queue_size,
+            retry_max=retry_max,
+            retry_delay=retry_delay,
+        )
         self.db = Database(db_filename)
 
         # If no unit is defined create a dummy one
@@ -143,7 +150,7 @@ class Becker:
             unit[2] = 1
 
         if mt:
-            _LOGGER.INFO("Moving %s for %s seconds..." % (mt.group(1), mt.group(2)))
+            _LOGGER.info("Moving %s for %s seconds..." % (mt.group(1), mt.group(2)))
             # move down/up for a specific time
             if mt.group(1) == "UP":
                 code = generate_code(channel, unit, COMMAND_UP)
