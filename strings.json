@@ -115,12 +115,13 @@
   "options": {
     "step": {
       "init": {
-        "title": "Import / export database",
+        "title": "Becker settings",
         "menu_options": {
           "export_json": "Export state (JSON)",
           "import_json": "Import state (JSON)",
           "export_db": "Export database file",
-          "import_db": "Import database file"
+          "import_db": "Import database file",
+          "communication_settings": "Communication"
         }
       },
       "export_json": {
@@ -146,6 +147,20 @@
         "description": "Upload a previously exported centronic-stick.db. The current file is backed up first and the integration reloads. Only import a genuine Becker database file.",
         "data": {
           "upload": "Database file"
+        }
+      },
+      "communication_settings": {
+        "title": "Communication",
+        "description": "Advanced queue and retry settings for RF commands. The defaults are suitable for most installations.",
+        "data": {
+          "queue_size": "Command queue size",
+          "command_retry_max": "Queue retry attempts",
+          "command_retry_delay": "Delay between retries"
+        },
+        "data_description": {
+          "queue_size": "Maximum number of RF commands waiting to be transmitted (10–1000).",
+          "command_retry_max": "Number of retries when the command queue is temporarily full (0–10).",
+          "command_retry_delay": "Seconds to wait between queue retries (0.1–10.0)."
         }
       }
     },
