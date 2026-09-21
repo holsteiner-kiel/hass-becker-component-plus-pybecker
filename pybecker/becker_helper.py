@@ -257,6 +257,7 @@ class BeckerCommunicator(threading.Thread):
         self._retry_delay = retry_delay
         # Setup threading stop event and queue
         self._stop_flag = threading.Event()
+        self._force_stop_flag = threading.Event()
         self._write_queue = queue.Queue(maxsize=queue_size)
         # Setup callback
         self._callback = callback
@@ -312,6 +313,11 @@ class BeckerCommunicator(threading.Thread):
 
             # Sleep for thread switch and wait time between packets
             time.sleep(0.1)
+            if self._force_stop_flag.is_set():
+                _LOGGER.warning(
+                    "Force-stopping BeckerCommunicator with pending RF commands"
+                )
+                break
             # Ensure all queued and pending packets are sent before stopping.
             if (
                 self._stop_flag.is_set()
@@ -403,7 +409,20 @@ class BeckerCommunicator(threading.Thread):
                 time.sleep(self._retry_delay)
 
     def close(self) -> None:
-        """Stop thread and close device"""
+        """Stop the thread and close the device.
+
+        Give queued commands a short opportunity to drain. If the connection
+        is still unavailable, force the daemon thread to exit rather than
+        leaving it alive after the integration has been unloaded.
+        """
         self.stop()
         self.join(timeout=5)
+        if self.is_alive():
+            _LOGGER.warning(
+                "BeckerCommunicator did not drain within 5 seconds; "
+                "forcing shutdown with %d queued command(s)",
+                self._write_queue.qsize(),
+            )
+            self._force_stop_flag.set()
+            self.join(timeout=1)
         self._connection.close()
