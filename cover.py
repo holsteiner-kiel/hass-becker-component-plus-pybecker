@@ -319,8 +319,8 @@ class BeckerEntity(CoverEntity, RestoreEntity):
 
     async def async_open_cover(self, **kwargs):
         """Set the cover to the open position."""
-        self._travel_to_position(OPEN_POSITION)
         await self._becker.move_up(self._channel)
+        self._travel_to_position(OPEN_POSITION)
 
     async def async_open_cover_tilt(self, **kwargs):
         """Open the cover tilt."""
@@ -329,13 +329,13 @@ class BeckerEntity(CoverEntity, RestoreEntity):
             await self.async_open_cover()
             self._update_scheduled_stop_travel_callback(self._tilt_time_blind)
         if self._tilt_intermediate:
-            self._travel_to_position(self._intermediate_pos_up)
             await self._becker.move_up_intermediate(self._channel)
+            self._travel_to_position(self._intermediate_pos_up)
 
     async def async_close_cover(self, **kwargs):
         """Set the cover to the closed position."""
-        self._travel_to_position(CLOSED_POSITION)
         await self._becker.move_down(self._channel)
+        self._travel_to_position(CLOSED_POSITION)
 
     async def async_close_cover_tilt(self, **kwargs):
         """Close the cover tilt."""
@@ -344,24 +344,32 @@ class BeckerEntity(CoverEntity, RestoreEntity):
             await self.async_close_cover()
             self._update_scheduled_stop_travel_callback(self._tilt_time_blind)
         if self._tilt_intermediate:
-            self._travel_to_position(self._intermediate_pos_down)
             await self._becker.move_down_intermediate(self._channel)
+            self._travel_to_position(self._intermediate_pos_down)
 
     async def async_stop_cover(self, **kwargs):
         """Set the cover to the stopped position."""
-        self._travel_stop()
         await self._becker.stop(self._channel)
+        self._travel_stop()
 
     async def async_set_cover_position(self, **kwargs):
         """Move the cover to a specific position."""
         # Feature only available if SUPPORT_SET_POSITION is set
         if ATTR_POSITION in kwargs:
             pos = kwargs[ATTR_POSITION]
-            travel_time = self._travel_to_position(pos)
-            if self._tc.is_closing():
+            current_pos = self.current_cover_position
+            if current_pos is None or pos == current_pos:
+                return
+
+            # Home Assistant uses 100=open and 0=closed. Only update the
+            # simulated travel state after the RF command was successfully
+            # accepted by the Becker communicator.
+            if pos < current_pos:
                 await self._becker.move_down(self._channel)
-            elif self._tc.is_opening():
+            else:
                 await self._becker.move_up(self._channel)
+
+            travel_time = self._travel_to_position(pos)
             if 0 < pos < 100:
                 self._update_scheduled_stop_travel_callback(travel_time)
 
