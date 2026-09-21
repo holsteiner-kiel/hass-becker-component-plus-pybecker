@@ -49,6 +49,8 @@ from .const import (
     BACKUP_PREFIX,
     CHANNEL_PATTERN,
     CONF_CHANNEL,
+    CONF_COMMAND_RETRY_DELAY,
+    CONF_COMMAND_RETRY_MAX,
     CONF_CONNECTION_TYPE,
     CONF_COVERS,
     CONF_INTERMEDIATE_DISABLE,
@@ -56,6 +58,7 @@ from .const import (
     CONF_INTERMEDIATE_POSITION_DOWN,
     CONF_INTERMEDIATE_POSITION_UP,
     CONF_PAIR,
+    CONF_QUEUE_SIZE,
     CONF_REMOTE_ID,
     CONF_STATE_TEXT,
     CONF_TILT_BLIND,
@@ -66,8 +69,11 @@ from .const import (
     CONF_UPLOAD,
     CONNECTION_TYPE_NETWORK,
     CONNECTION_TYPE_SERIAL,
+    DEFAULT_COMMAND_RETRY_DELAY,
+    DEFAULT_COMMAND_RETRY_MAX,
     DEFAULT_DB_FILENAME,
     DEFAULT_DEVICE,
+    DEFAULT_QUEUE_SIZE,
     DEFAULT_TCP_PORT,
     DOMAIN,
     DOWNLOAD_LINK_TTL_MINUTES,
@@ -461,7 +467,46 @@ class BeckerOptionsFlow(OptionsFlow):
         """Show the import/export menu."""
         return self.async_show_menu(
             step_id="init",
-            menu_options=["export_json", "import_json", "export_db", "import_db"],
+            menu_options=[
+                "communication_settings",
+                "export_json",
+                "import_json",
+                "export_db",
+                "import_db",
+            ],
+        )
+
+    async def async_step_communication_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure RF command queue and retry behavior."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_QUEUE_SIZE,
+                    default=self.config_entry.options.get(
+                        CONF_QUEUE_SIZE, DEFAULT_QUEUE_SIZE
+                    ),
+                ): vol.All(vol.Coerce(int), vol.Range(min=10, max=1000)),
+                vol.Required(
+                    CONF_COMMAND_RETRY_MAX,
+                    default=self.config_entry.options.get(
+                        CONF_COMMAND_RETRY_MAX, DEFAULT_COMMAND_RETRY_MAX
+                    ),
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=10)),
+                vol.Required(
+                    CONF_COMMAND_RETRY_DELAY,
+                    default=self.config_entry.options.get(
+                        CONF_COMMAND_RETRY_DELAY, DEFAULT_COMMAND_RETRY_DELAY
+                    ),
+                ): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=10.0)),
+            }
+        )
+        return self.async_show_form(
+            step_id="communication_settings", data_schema=schema
         )
 
     def _download_url(self, fmt: str) -> str:
