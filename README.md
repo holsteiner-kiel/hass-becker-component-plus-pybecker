@@ -103,6 +103,8 @@ Open **Settings → Devices & Services → Becker → Configure**:
 > across Home Assistant's event loop and executor threads.
 > Since version 0.4.5, the setup flow performs a strict connection check while
 > runtime connections retain automatic reconnect behavior.
+> Since version 0.4.6, potentially blocking RF queue writes are offloaded from
+> Home Assistant's asyncio event loop while preserving command order.
 
 ## Basic configuration (YAML, deprecated)
 ```yaml
