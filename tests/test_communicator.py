@@ -2,6 +2,7 @@
 
 import queue
 import threading
+from types import SimpleNamespace
 
 import pytest
 
@@ -39,3 +40,29 @@ def test_command_is_queued_when_capacity_is_available() -> None:
     communicator.send(b"packet")
 
     assert communicator._write_queue.get_nowait() == b"packet"
+
+
+def test_diagnostics_report_runtime_status_without_device_address() -> None:
+    communicator = _communicator_with_queue(10, retries=2)
+    communicator._retry_delay = 0.25
+    communicator._write_queue.put(b"packet")
+    communicator._connection = SimpleNamespace(
+        is_open=True,
+        is_serial=False,
+        device="socket://192.168.1.10:5000",
+    )
+
+    diagnostics = communicator.diagnostics()
+
+    assert diagnostics == {
+        "thread_alive": True,
+        "connection_open": True,
+        "transport": "network",
+        "queue_depth": 1,
+        "queue_capacity": 10,
+        "queue_percent": 10.0,
+        "retry_max": 2,
+        "retry_delay": 0.25,
+        "stopping": False,
+    }
+    assert "192.168.1.10" not in repr(diagnostics)

@@ -134,6 +134,11 @@ class BeckerConnection():
         """Return device name."""
         return self._device
 
+    @property
+    def is_open(self) -> bool:
+        """Return whether the underlying transport is currently open."""
+        return bool(self._connection.is_open)
+
     def write(self, packet: bytes) -> None:
         """Write data."""
         self._open()
@@ -374,6 +379,27 @@ class BeckerCommunicator(threading.Thread):
                     match.group('argument').decode(),
                     match.group(0),
                 )
+
+    def diagnostics(self) -> dict[str, Any]:
+        """Return privacy-safe runtime diagnostics."""
+        queue_depth = self._write_queue.qsize()
+        queue_capacity = self._queue_size
+        queue_percent = (
+            round(queue_depth / queue_capacity * 100, 1)
+            if queue_capacity
+            else 0.0
+        )
+        return {
+            "thread_alive": self.is_alive(),
+            "connection_open": self._connection.is_open,
+            "transport": "serial" if self._connection.is_serial else "network",
+            "queue_depth": queue_depth,
+            "queue_capacity": queue_capacity,
+            "queue_percent": queue_percent,
+            "retry_max": self._retry_max,
+            "retry_delay": self._retry_delay,
+            "stopping": self._stop_flag.is_set(),
+        }
 
     def send(self, packet) -> None:
         """Queue a packet, retrying temporary queue saturation."""

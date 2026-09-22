@@ -34,7 +34,6 @@ COMMAND_CLEARPOS4 = 0x93
 
 # DEFAULT_DEVICE_NAME moved to becker_helper
 
-logging.basicConfig()
 _LOGGER = logging.getLogger(__name__)
 
 
