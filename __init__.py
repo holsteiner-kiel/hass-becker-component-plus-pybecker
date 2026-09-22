@@ -9,7 +9,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_DEVICE, CONF_FILENAME
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
+from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady, ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.dispatcher import dispatcher_send
 from homeassistant.helpers.typing import ConfigType
@@ -19,6 +19,7 @@ from .const import (
     CONF_CHANNEL,
     CONF_COMMAND_RETRY_DELAY,
     CONF_COMMAND_RETRY_MAX,
+    CONF_ENTRY_ID,
     CONF_QUEUE_SIZE,
     CONF_UNIT,
     DEFAULT_COMMAND_RETRY_DELAY,
@@ -44,6 +45,13 @@ PAIR_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_CHANNEL): vol.All(int, vol.Range(min=1, max=7)),
         vol.Optional(CONF_UNIT): vol.All(int, vol.Range(min=1, max=5)),
+        vol.Optional(CONF_ENTRY_ID): str,
+    }
+)
+
+LOG_UNITS_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_ENTRY_ID): str,
     }
 )
 
@@ -74,7 +82,10 @@ def _resolve_db_path(config_dir: str, filename: str | None) -> str:
         # create a new file in HA config folder
         _LOGGER.warning("Database file %s does not exist. Creating a new file", file)
         return os.path.join(config_dir, file)
-    assert os.path.exists(path), f"Path of filename {filename} invalid or does not exist!"
+    if not os.path.isdir(path):
+        raise ValueError(
+            f"Database directory {path} does not exist or is not a directory"
+        )
     _LOGGER.warning("Database file %s does not exist. Creating a new file", filename)
     return filename
 
@@ -97,15 +108,25 @@ def _packet_callback(hass: HomeAssistant, entry_id: str, packet) -> None:
     hass.bus.fire(f"{DOMAIN}_{REMOTE_PACKET_EVENT}", data)
 
 
-def _get_becker(hass: HomeAssistant) -> Becker:
-    """Return the Becker instance of the loaded config entry."""
+def _get_becker(hass: HomeAssistant, entry_id: str | None = None) -> Becker:
+    """Return the Becker instance selected for a service call."""
     entries = hass.config_entries.async_loaded_entries(DOMAIN)
     if not entries:
         raise ServiceValidationError("No loaded Becker configuration entry found")
-    if len(entries) > 1:
-        _LOGGER.warning(
-            "Multiple Becker entries are configured. The service uses the first one"
+
+    if entry_id is not None:
+        for entry in entries:
+            if entry.entry_id == entry_id:
+                return entry.runtime_data
+        raise ServiceValidationError(
+            f"Becker configuration entry {entry_id} is not loaded"
         )
+
+    if len(entries) > 1:
+        raise ServiceValidationError(
+            "Multiple Becker configuration entries are loaded; specify entry_id"
+        )
+
     return entries[0].runtime_data
 
 
@@ -116,11 +137,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         """Pair with a cover receiver."""
         channel = call.data[CONF_CHANNEL]
         unit = call.data.get(CONF_UNIT, 1)
-        await _get_becker(hass).pair(f"{unit}:{channel}")
+        await _get_becker(hass, call.data.get(CONF_ENTRY_ID)).pair(
+            f"{unit}:{channel}"
+        )
 
     async def handle_log_units(call: ServiceCall) -> None:
         """Log all paired units."""
-        units = await _get_becker(hass).list_units()
+        units = await _get_becker(hass, call.data.get(CONF_ENTRY_ID)).list_units()
         # Apparently the SQLite results are implicitly returned in unit id
         # order. This seems pretty dirty to rely on.
         _LOGGER.info("Configured Becker centronic units:")
@@ -131,16 +154,23 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             )
 
     hass.services.async_register(DOMAIN, "pair", handle_pair, PAIR_SCHEMA)
-    hass.services.async_register(DOMAIN, "log_units", handle_log_units)
+    hass.services.async_register(
+        DOMAIN, "log_units", handle_log_units, LOG_UNITS_SCHEMA
+    )
     hass.http.register_view(BeckerDownloadView())
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: BeckerConfigEntry) -> bool:
     """Set up a Becker Centronic stick from a config entry."""
-    filename = await hass.async_add_executor_job(
-        _resolve_db_path, hass.config.config_dir, entry.data.get(CONF_FILENAME)
-    )
+    try:
+        filename = await hass.async_add_executor_job(
+            _resolve_db_path, hass.config.config_dir, entry.data.get(CONF_FILENAME)
+        )
+    except ValueError as err:
+        raise ConfigEntryError(
+            f"Invalid Becker database path: {err}"
+        ) from err
     _LOGGER.debug("Using database file %s", filename)
 
     try:

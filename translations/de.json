@@ -1,0 +1,203 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Becker Centronic Stick",
+        "description": "Wähle aus, wie Home Assistant die Verbindung zum Centronic USB-Stick herstellt.",
+        "menu_options": {
+          "serial": "Serieller Anschluss (USB-Stick)",
+          "network": "Netzwerk (Seriell-zu-TCP-Bridge)"
+        }
+      },
+      "serial": {
+        "title": "Serielle Verbindung",
+        "data": {
+          "device": "Serieller Anschluss",
+          "filename": "Datenbankdatei"
+        },
+        "data_description": {
+          "device": "Pfad zum Centronic USB-Stick.",
+          "filename": "SQLite-Datei mit den Kopplungs- und Rolling-Code-Daten. Behalte den Standardwert bei, außer du migrierst eine vorhandene Datei."
+        }
+      },
+      "network": {
+        "title": "Netzwerkverbindung",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "filename": "Datenbankdatei"
+        },
+        "data_description": {
+          "host": "Hostname oder IP-Adresse der Seriell-zu-TCP-Bridge, zum Beispiel ser2net.",
+          "port": "TCP-Port der Bridge.",
+          "filename": "SQLite-Datei mit den Kopplungs- und Rolling-Code-Daten. Behalte den Standardwert bei, außer du migrierst eine vorhandene Datei."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zum Becker Centronic Stick fehlgeschlagen."
+    },
+    "abort": {
+      "already_configured": "Dieser Becker Centronic Stick ist bereits eingerichtet."
+    }
+  },
+  "config_subentries": {
+    "cover": {
+      "entry_type": "Abdeckung",
+      "initiate_flow": {
+        "user": "Abdeckung hinzufügen"
+      },
+      "step": {
+        "user": {
+          "title": "Becker-Abdeckung hinzufügen",
+          "data": {
+            "channel": "Kanal",
+            "friendly_name": "Name",
+            "value_template": "Positions-Template",
+            "remote_id": "Fernbedienungs-ID(s)",
+            "travelling_time_down": "Fahrzeit abwärts",
+            "travelling_time_up": "Fahrzeit aufwärts",
+            "intermediate_position": "Zwischenpositionen aktivieren",
+            "intermediate_position_up": "Zwischenposition aufwärts",
+            "intermediate_position_down": "Zwischenposition abwärts",
+            "tilt_intermediate": "Neigen fährt Zwischenposition an",
+            "tilt_blind": "Neigen als Jalousie",
+            "tilt_time_blind": "Jalousie-Neigezeit"
+          },
+          "data_description": {
+            "channel": "Kanal der Abdeckung: 1-7 oder Einheit:Kanal (zum Beispiel 2:1), wenn eine andere Sendeeinheit als 1 verwendet wird.",
+            "value_template": "Optionales Template, das die Position der Abdeckung aus einer anderen Entität liefert.",
+            "remote_id": "Optionale IDs physischer Fernbedienungen im Format ID:Kanal (zum Beispiel 12345:2). Mehrere Fernbedienungen mit Kommas trennen.",
+            "travelling_time_down": "Sekunden für die Fahrt von offen nach geschlossen. Aktiviert die Positionssteuerung.",
+            "travelling_time_up": "Sekunden für die Fahrt von geschlossen nach offen. Aktiviert die Positionssteuerung."
+          }
+        },
+        "reconfigure": {
+          "title": "Abdeckung auf Kanal {channel} neu konfigurieren",
+          "data": {
+            "friendly_name": "Name",
+            "value_template": "Positions-Template",
+            "remote_id": "Fernbedienungs-ID(s)",
+            "travelling_time_down": "Fahrzeit abwärts",
+            "travelling_time_up": "Fahrzeit aufwärts",
+            "intermediate_position": "Zwischenpositionen aktivieren",
+            "intermediate_position_up": "Zwischenposition aufwärts",
+            "intermediate_position_down": "Zwischenposition abwärts",
+            "tilt_intermediate": "Neigen fährt Zwischenposition an",
+            "tilt_blind": "Neigen als Jalousie",
+            "tilt_time_blind": "Jalousie-Neigezeit"
+          },
+          "data_description": {
+            "value_template": "Optionales Template, das die Position der Abdeckung aus einer anderen Entität liefert.",
+            "remote_id": "Optionale IDs physischer Fernbedienungen im Format ID:Kanal (zum Beispiel 12345:2). Mehrere Fernbedienungen mit Kommas trennen.",
+            "travelling_time_down": "Sekunden für die Fahrt von offen nach geschlossen. Aktiviert die Positionssteuerung.",
+            "travelling_time_up": "Sekunden für die Fahrt von geschlossen nach offen. Aktiviert die Positionssteuerung."
+          }
+        },
+        "pair": {
+          "title": "Abdeckung koppeln",
+          "description": "Versetze den Empfänger für Kanal {channel} in den Lernmodus (siehe Anleitung – häufig über eine Taste am Motor oder an der Master-Fernbedienung) und bestätige anschließend, um das Kopplungssignal zu senden. Du kannst diesen Schritt auch überspringen und später über die Koppeln-Schaltfläche nachholen.",
+          "data": {
+            "pair": "Kopplungssignal jetzt senden"
+          }
+        }
+      },
+      "error": {
+        "invalid_channel": "Der Kanal muss 1-7 oder Einheit:Kanal sein (zum Beispiel 2:1).",
+        "invalid_remote_id": "Die Fernbedienungs-ID muss das Format ID:Kanal haben (zum Beispiel 12345:2).",
+        "already_configured": "Eine Abdeckung mit diesem Kanal ist bereits eingerichtet."
+      },
+      "abort": {
+        "reconfigure_successful": "Abdeckung aktualisiert."
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Becker-Einstellungen",
+        "menu_options": {
+          "export_json": "Status exportieren (JSON)",
+          "import_json": "Status importieren (JSON)",
+          "export_db": "Datenbankdatei exportieren",
+          "import_db": "Datenbankdatei importieren",
+          "communication_settings": "Kommunikation"
+        }
+      },
+      "export_json": {
+        "title": "Status exportieren (JSON)",
+        "description": "[becker_state.json herunterladen]({download_url})\n\nAlternativ kann der Status unten kopiert werden. Enthalten sind die Rolling-Code-Zähler und Kopplungszustände aller fünf Einheiten.",
+        "data": {
+          "state_text": "Status-JSON"
+        }
+      },
+      "export_db": {
+        "title": "Datenbankdatei exportieren",
+        "description": "[centronic-stick.db herunterladen]({download_url})\n\nDies ist eine exakte Kopie der Datenbankdatei. Bewahre sie sicher auf."
+      },
+      "import_json": {
+        "title": "Status importieren (JSON)",
+        "description": "Lade eine zuvor exportierte becker_state.json hoch. Der aktuelle Status wird vorher gesichert. Importe, die Rolling-Code-Zähler zurücksetzen würden, werden blockiert.",
+        "data": {
+          "upload": "Status-JSON-Datei"
+        }
+      },
+      "import_db": {
+        "title": "Datenbankdatei importieren",
+        "description": "Lade eine zuvor exportierte centronic-stick.db hoch. Die aktuelle Datei wird vorher gesichert, anschließend wird die Integration neu geladen. Importe, die Rolling-Code-Zähler zurücksetzen würden, werden blockiert.",
+        "data": {
+          "upload": "Datenbankdatei"
+        }
+      },
+      "communication_settings": {
+        "title": "Kommunikation",
+        "description": "Erweiterte Warteschlangen- und Wiederholungseinstellungen für RF-Befehle. Die Standardwerte sind für die meisten Installationen geeignet.",
+        "data": {
+          "queue_size": "Größe der Befehlswarteschlange",
+          "command_retry_max": "Wiederholungsversuche der Warteschlange",
+          "command_retry_delay": "Pause zwischen Wiederholungen"
+        },
+        "data_description": {
+          "queue_size": "Maximale Anzahl wartender RF-Befehle (10-1000).",
+          "command_retry_max": "Anzahl der Wiederholungen bei vorübergehend voller Befehlswarteschlange (0-10).",
+          "command_retry_delay": "Sekunden zwischen Wiederholungsversuchen (0,1-10,0)."
+        }
+      }
+    },
+    "error": {
+      "invalid_json": "Die Datei enthält kein gültiges JSON.",
+      "invalid_format": "Das JSON entspricht keinem gültigen Becker-Status-Export.",
+      "invalid_db": "Die Datei ist keine gültige Becker-Datenbank.",
+      "rollback_detected": "Der Import wurde blockiert, weil dadurch mindestens ein Rolling-Code-Zähler oder Kopplungszustand zurückgesetzt würde."
+    },
+    "abort": {
+      "export_done": "Export bereit.",
+      "import_done": "Import angewendet."
+    }
+  },
+  "entity": {
+    "button": {
+      "pair": {
+        "name": "Koppeln"
+      }
+    },
+    "event": {
+      "remote": {
+        "name": "Fernbedienung",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "up": "Auf",
+              "up_intermediate": "Auf (Zwischenposition)",
+              "down": "Ab",
+              "down_intermediate": "Ab (Zwischenposition)",
+              "halt": "Stopp",
+              "release": "Loslassen",
+              "unknown": "Unbekannt"
+            }
+          }
+        }
+      }
+    }
+  }
+}

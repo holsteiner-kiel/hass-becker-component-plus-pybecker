@@ -1,0 +1,32 @@
+# Changelog
+
+## 0.5.0
+
+A modernization and reliability milestone for the maintained Becker Home Assistant integration.
+
+### Highlights
+
+- Modern Home Assistant UI configuration with config entries and cover subentries
+- Serial USB and serial-to-TCP connection setup
+- In-UI pairing and re-pairing
+- Remote-control button presses exposed as event entities
+- Rolling-code-safe JSON and SQLite export/import with automatic backups
+- Protection against stale rolling-code imports and configured-state rollback
+- Serialized imports, RF commands and SQLite access
+- Resilient USB/network reconnect behavior
+- Strict setup-time connection validation
+- RF queue backpressure and retry handling
+- Blocking RF queue writes moved off Home Assistant's asyncio event loop
+- Live cover position tracking improvements
+- Automated CI and regression test coverage against current Home Assistant releases
+- Explicit service targeting for installations with multiple Becker config entries
+- Safer database-path validation
+- Refreshed project documentation and branding
+
+### Compatibility
+
+The integration remains compatible with existing centronic-stick.db state. Because Becker uses rolling codes, always keep a current state backup before migrating or restoring an installation.
+
+## 0.4.x
+
+The 0.4.x series introduced the initial maintained-fork modernization work that is consolidated in 0.5.0, including UI configuration, database import/export, reconnect hardening, rolling-code protection, SQLite serialization and event-loop hardening.
