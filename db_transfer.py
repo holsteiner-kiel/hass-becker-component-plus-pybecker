@@ -23,6 +23,10 @@ class StateFormatError(Exception):
     """Raised when the JSON does not match the expected state format."""
 
 
+class StateRollbackError(Exception):
+    """Raised when an import would move rolling-code state backwards."""
+
+
 def build_state(units: list[dict], exported_at: str) -> dict:
     """Build the export document from unit rows."""
     return {"version": STATE_VERSION, "exported_at": exported_at, "units": units}
@@ -73,6 +77,19 @@ def parse_state_json(raw: str | bytes) -> list[dict]:
             {"code": code, "increment": increment, "configured": configured}
         )
     return rows
+
+
+def ensure_no_rollback(current: list[dict], incoming: list[dict]) -> None:
+    """Reject imports that move configured state or counters backwards."""
+    current_by_code = {row["code"]: row for row in current}
+    for row in incoming:
+        existing = current_by_code.get(row["code"])
+        if existing is None:
+            continue
+        if int(row["increment"]) < int(existing["increment"]):
+            raise StateRollbackError
+        if int(existing["configured"]) == 1 and int(row["configured"]) == 0:
+            raise StateRollbackError
 
 
 def read_units(db_path: str) -> list[dict]:
