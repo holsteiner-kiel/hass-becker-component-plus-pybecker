@@ -1,24 +1,30 @@
-# Becker cover support for Home Assistant
+# Becker for Home Assistant
 
-> Maintained fork of the original Becker integration, focused on current Home Assistant releases, UI configuration and reliable Centronic USB communication.
+[![CI](https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker/actions/workflows/ci.yml/badge.svg)](https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker/actions/workflows/ci.yml)
+![Version](https://img.shields.io/badge/version-0.5.0-blue)
 
-A native Home Assistant component to control Becker RF shutters with a Becker Centronic USB stick.
-It works with the Becker ***Centronic USB Stick*** with the Becker order number ***4035 200 041 0*** and ***4035 000 041 0***.
-It works for the Becker ***Centronic*** roller shutters, blinds and sun protection as well as for Roto roof windows with RF remotes.  
-It is based on the work of [ole](https://github.com/ole1986) and [Nicolas Berthel](https://github.com/nicolasberthel).
+A maintained Home Assistant integration for controlling **Becker Centronic RF covers** with a Becker Centronic USB stick.
 
-The Becker integration currently supports the following cover operations:
-- Open
-- Close
-- Stop
-- Open tilt
-- Close tilt
-- Set cover position
+This fork focuses on current Home Assistant releases, UI-first configuration, reliable RF communication and safe handling of Becker rolling-code state. It supports Becker roller shutters, blinds and sun protection as well as compatible Roto roof windows using RF remotes.
 
-There are three ways to track position of the cover:
-- Add the travel time to configuration
-- Provide a value template e.g. to use sensors to set the current position
-- Track the cover commands from Becker remotes
+Supported Centronic USB stick order numbers include **4035 200 041 0** and **4035 000 041 0**.
+
+## Highlights
+
+- UI setup for local USB and serial-to-TCP connections
+- Cover subentries with pairing directly from Home Assistant
+- Open, close, stop, position and tilt/intermediate controls
+- Position tracking by travel time, template or physical remote commands
+- Remote button presses exposed as Home Assistant event entities
+- Rolling-code-safe JSON and SQLite backup/import tools
+- Automatic reconnect after transient USB or network failures
+- Serialized database access and RF command handling
+- Configurable RF queue/retry behavior
+- Automated regression tests against current Home Assistant releases
+
+> **Important:** Becker uses rolling codes. Keep a current backup of the integration state before migrating Home Assistant or restoring a database. The integration rejects imports that would move known rolling-code state backwards.
+
+The project builds on the original work by [ole](https://github.com/ole1986), [Nicolas Berthel](https://github.com/nicolasberthel) and later contributors.
 
 # Installation
 
