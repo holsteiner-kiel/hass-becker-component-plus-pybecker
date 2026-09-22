@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.2
+
+A diagnostics and supportability release.
+
+- Add native Home Assistant config-entry diagnostics
+- Report privacy-safe connection, thread, RF queue and retry status
+- Report configured cover/channel and database-unit counts without exposing rolling codes
+- Keep device addresses, database paths, remote IDs and rolling-code state out of diagnostics
+- Let Home Assistant fully control logging configuration
+
 ## 0.5.1
 
 A small logging and diagnostics polish release.
