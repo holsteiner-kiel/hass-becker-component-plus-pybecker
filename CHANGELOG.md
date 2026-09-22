@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0
+
+A Home Assistant UX and resilience milestone.
+
+### Highlights
+
+- Add config-entry reconfiguration for switching or updating serial and network connections
+- Validate replacement connections before saving and reload the existing entry in place
+- Preserve existing config-entry identity while changing connection details
+- Add actionable Home Assistant Repair issues for unavailable connections and invalid database paths
+- Automatically clear setup Repair issues after a successful setup
+- Mark cover, pair-button and remote-event entities unavailable when the communicator cannot currently accept RF work
+- Keep RF command generation, rolling-code handling and database state semantics unchanged
+
 ## 0.5.3
 
 A diagnostics hardening release.
