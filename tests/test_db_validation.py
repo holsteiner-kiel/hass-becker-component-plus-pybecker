@@ -136,3 +136,20 @@ def test_import_units_rolls_back_when_unknown_code_is_present(
 
     assert db.get_unit(1) == before
     db.conn.close()
+
+
+def test_import_units_rolls_back_duplicate_code(tmp_path: Path) -> None:
+    path = tmp_path / "duplicate.db"
+    db = Database(str(path))
+    before = db.get_unit(1)
+
+    with pytest.raises(sqlite3.IntegrityError):
+        db.import_units(
+            [
+                {"code": "1737b", "increment": 123, "configured": 1},
+                {"code": "1737b", "increment": 124, "configured": 1},
+            ]
+        )
+
+    assert db.get_unit(1) == before
+    db.conn.close()
