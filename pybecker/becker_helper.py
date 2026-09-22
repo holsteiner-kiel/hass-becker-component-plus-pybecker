@@ -98,12 +98,17 @@ class BeckerConnection():
     # underlying pyserial object once it gets stuck failing to open.
     RECONNECT_REBUILD_INTERVAL = 10
 
-    def __init__(self, device: str) -> None:
-        """Initialize connection."""
+    def __init__(self, device: str, strict: bool = False) -> None:
+        """Initialize connection.
+
+        strict=True is intended for setup validation and raises immediately
+        when the device cannot be opened. Runtime connections keep the
+        resilient reconnect behavior.
+        """
         self._device, self._is_serial = self._validate_device(device)
         self._connection = self._build_serial()
         self._last_rebuild_attempt = 0.0
-        self._open()
+        self._open(strict=strict)
 
     def _build_serial(self):
         """Create a fresh pyserial Serial object for the configured device."""
@@ -159,22 +164,33 @@ class BeckerConnection():
                 pass
         return packet
 
-    def _open(self) -> None:
-        if not self._connection.is_open:
-            _LOGGER.debug("Try to open connection.")
-            try:
-                self._connection.open()
-            except serial.SerialException as err:
-                if self.is_serial:
-                    _LOGGER.warning(
-                        "Establish connection to %s failed, will retry: %s", self.device, err
-                    )
-                    self._maybe_rebuild()
-                else:
-                    _LOGGER.error("Establish connection to %s failed!", self.device)
-            except Exception as err:     # pylint: disable=broad-except
-                _LOGGER.warning("Establish connection to %s failed, will retry: %s", self.device, err)
+    def _open(self, strict: bool = False) -> None:
+        """Open the connection, optionally failing fast for setup validation."""
+        if self._connection.is_open:
+            return
+
+        _LOGGER.debug("Try to open connection.")
+        try:
+            self._connection.open()
+        except Exception as err:  # pylint: disable=broad-except
+            if strict:
+                raise BeckerConnectionError(
+                    f"Could not open Becker connection to {self.device}: {err}"
+                ) from err
+
+            if self.is_serial:
+                _LOGGER.warning(
+                    "Establish connection to %s failed, will retry: %s",
+                    self.device,
+                    err,
+                )
                 self._maybe_rebuild()
+            else:
+                _LOGGER.warning(
+                    "Establish connection to %s failed, will retry: %s",
+                    self.device,
+                    err,
+                )
 
     def _maybe_rebuild(self) -> None:
         """Periodically tear down and recreate the underlying pyserial object.
