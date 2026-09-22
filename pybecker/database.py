@@ -123,14 +123,22 @@ class Database:
         ]
 
     def import_units(self, rows):
-        """Update increment and configured for each row keyed by unit code."""
+        """Update increment and configured for known units atomically."""
         c = self.conn.cursor()
-        for row in rows:
-            c.execute(
-                "UPDATE unit SET increment = ?, configured = ? WHERE code = ?",
-                (int(row["increment"]), int(row["configured"]), row["code"]),
-            )
-        self.conn.commit()
+        try:
+            for row in rows:
+                result = c.execute(
+                    "UPDATE unit SET increment = ?, configured = ? WHERE code = ?",
+                    (int(row["increment"]), int(row["configured"]), row["code"]),
+                )
+                if result.rowcount != 1:
+                    raise sqlite3.IntegrityError(
+                        f"Unknown or duplicate Becker unit code: {row['code']}"
+                    )
+            self.conn.commit()
+        except (sqlite3.Error, KeyError, TypeError, ValueError):
+            self.conn.rollback()
+            raise
 
     def get_rowid_from_unit(self, code, create=True):
         c = self.conn.cursor()
