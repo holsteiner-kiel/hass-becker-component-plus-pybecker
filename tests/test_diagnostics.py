@@ -76,9 +76,11 @@ async def test_config_entry_diagnostics_are_privacy_safe() -> None:
     }
     assert diagnostics["covers"] == {"count": 2, "channels": ["1", "2"]}
     assert diagnostics["database"] == {
+        "available": True,
         "unit_count": 2,
         "configured_unit_count": 1,
     }
+    assert diagnostics["communication"]["available"] is True
     assert diagnostics["communication"]["thread_alive"] is True
 
     rendered = repr(diagnostics)
@@ -87,3 +89,67 @@ async def test_config_entry_diagnostics_are_privacy_safe() -> None:
     assert "ABCDE:1" not in rendered
     assert "1737b" not in rendered
     assert "1234" not in rendered
+
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_survive_database_failure() -> None:
+    """A broken database must not prevent downloading diagnostics."""
+    communicator = MagicMock()
+    communicator.diagnostics.return_value = {"thread_alive": True}
+
+    becker = SimpleNamespace(
+        communicator=communicator,
+        list_units=AsyncMock(side_effect=OSError("database unavailable")),
+    )
+    entry = SimpleNamespace(
+        runtime_data=becker,
+        data={CONF_CONNECTION_TYPE: CONNECTION_TYPE_SERIAL},
+        options={},
+        subentries={},
+    )
+
+    diagnostics = await async_get_config_entry_diagnostics(MagicMock(), entry)
+
+    assert diagnostics["database"] == {
+        "available": False,
+        "error_type": "OSError",
+    }
+    assert diagnostics["communication"] == {
+        "available": True,
+        "thread_alive": True,
+    }
+    assert "database unavailable" not in repr(diagnostics)
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_survive_communicator_failure() -> None:
+    """A partial communicator failure must still produce diagnostics."""
+    communicator = MagicMock()
+    communicator.diagnostics.side_effect = RuntimeError(
+        "socket://private-host:5000"
+    )
+
+    becker = SimpleNamespace(
+        communicator=communicator,
+        list_units=AsyncMock(return_value=[]),
+    )
+    entry = SimpleNamespace(
+        runtime_data=becker,
+        data={CONF_CONNECTION_TYPE: CONNECTION_TYPE_SERIAL},
+        options={},
+        subentries={},
+    )
+
+    diagnostics = await async_get_config_entry_diagnostics(MagicMock(), entry)
+
+    assert diagnostics["database"] == {
+        "available": True,
+        "unit_count": 0,
+        "configured_unit_count": 0,
+    }
+    assert diagnostics["communication"] == {
+        "available": False,
+        "error_type": "RuntimeError",
+    }
+    assert "private-host" not in repr(diagnostics)

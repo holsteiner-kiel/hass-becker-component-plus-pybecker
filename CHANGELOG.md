@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.3
+
+A diagnostics hardening release.
+
+- Keep Home Assistant diagnostics downloadable when database inspection fails
+- Keep diagnostics downloadable when communicator status inspection fails
+- Report only exception types for failed diagnostics sections, not sensitive exception text
+- Mark database and communication diagnostic sections explicitly as available or unavailable
+
 ## 0.5.2
 
 A diagnostics and supportability release.

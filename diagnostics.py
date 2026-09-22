@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from homeassistant.core import HomeAssistant
 
 from . import BeckerConfigEntry
+_LOGGER = logging.getLogger(__name__)
+
 from .const import (
     CONF_CHANNEL,
     CONF_COMMAND_RETRY_DELAY,
@@ -25,7 +28,35 @@ async def async_get_config_entry_diagnostics(
 ) -> dict[str, Any]:
     """Return privacy-safe diagnostics for a Becker config entry."""
     becker = entry.runtime_data
-    units = await becker.list_units()
+
+    try:
+        units = await becker.list_units()
+    except Exception as err:  # Diagnostics must remain available during failures.
+        _LOGGER.debug("Could not read Becker database diagnostics", exc_info=True)
+        database = {
+            "available": False,
+            "error_type": type(err).__name__,
+        }
+    else:
+        database = {
+            "available": True,
+            "unit_count": len(units),
+            "configured_unit_count": sum(
+                1 for unit in units if len(unit) > 2 and int(unit[2]) == 1
+            ),
+        }
+
+    try:
+        communication = {
+            "available": True,
+            **becker.communicator.diagnostics(),
+        }
+    except Exception as err:  # Preserve diagnostics even for partial runtime failure.
+        _LOGGER.debug("Could not read Becker communicator diagnostics", exc_info=True)
+        communication = {
+            "available": False,
+            "error_type": type(err).__name__,
+        }
 
     channels = sorted(
         str(subentry.data[CONF_CHANNEL])
@@ -48,11 +79,6 @@ async def async_get_config_entry_diagnostics(
             "count": len(channels),
             "channels": channels,
         },
-        "database": {
-            "unit_count": len(units),
-            "configured_unit_count": sum(
-                1 for unit in units if len(unit) > 2 and int(unit[2]) == 1
-            ),
-        },
-        "communication": becker.communicator.diagnostics(),
+        "database": database,
+        "communication": communication,
     }
