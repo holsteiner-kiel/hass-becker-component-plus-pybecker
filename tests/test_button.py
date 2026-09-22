@@ -9,7 +9,7 @@ from homeassistant.components.button import (
     DOMAIN as BUTTON_DOMAIN,
     SERVICE_PRESS,
 )
-from homeassistant.const import ATTR_ENTITY_ID
+from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 
 ENTITY_ID = "button.kitchen_pair"
@@ -43,3 +43,17 @@ async def test_pair_button_sends_train(
     )
 
     mock_becker.pair.assert_awaited_once_with("1")
+
+
+
+@pytest.mark.usefixtures("mock_config_entry_with_cover")
+async def test_pair_button_unavailable_when_communicator_is_down(
+    hass: HomeAssistant,
+    mock_becker: MagicMock,
+    mock_config_entry_with_cover: MockConfigEntry,
+) -> None:
+    """Pair button reflects communicator availability."""
+    mock_becker.communicator.is_available.return_value = False
+    await setup_integration(hass, mock_config_entry_with_cover)
+
+    assert hass.states.get(ENTITY_ID).state == STATE_UNAVAILABLE
