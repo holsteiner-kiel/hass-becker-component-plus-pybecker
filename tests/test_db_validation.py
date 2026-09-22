@@ -29,8 +29,8 @@ def test_state_import_rejects_duplicate_unit_codes() -> None:
         parse_state_json(raw)
 
 
-@pytest.mark.parametrize("increment", [-1, 65536, 999999])
-def test_state_import_rejects_increment_outside_16_bit_range(
+@pytest.mark.parametrize("increment", [-1, 1 << 63])
+def test_state_import_rejects_increment_outside_sqlite_range(
     increment: int,
 ) -> None:
     raw = json.dumps(
@@ -76,11 +76,39 @@ def test_database_validation_rejects_increment_overflow(tmp_path: Path) -> None:
     con.execute(
         "CREATE TABLE unit (code NVARCHAR(5), increment INTEGER(4), configured BIT, executed INTEGER)"
     )
-    con.execute("INSERT INTO unit VALUES ('1737b', 65536, 1, 0)")
+    con.execute("INSERT INTO unit VALUES ('1737b', 9223372036854775807, 1, 0)")
+    con.execute("UPDATE unit SET increment = increment + 1")
     con.commit()
     con.close()
 
     assert is_valid_becker_db(path) is False
+
+
+def test_database_validation_rejects_incomplete_unit_set(tmp_path: Path) -> None:
+    path = tmp_path / "partial.db"
+    con = sqlite3.connect(path)
+    con.execute(
+        "CREATE TABLE unit (code NVARCHAR(5), increment INTEGER(4), configured BIT, executed INTEGER)"
+    )
+    con.execute("INSERT INTO unit VALUES ('1737b', 10, 1, 0)")
+    con.commit()
+    con.close()
+
+    assert is_valid_becker_db(path) is False
+
+
+def test_state_import_rejects_unknown_version() -> None:
+    raw = json.dumps(
+        {
+            "version": 999,
+            "units": [
+                {"code": "1737b", "increment": 10, "configured": 1},
+            ],
+        }
+    )
+
+    with pytest.raises(StateFormatError):
+        parse_state_json(raw)
 
 
 def test_database_validation_accepts_generated_database(tmp_path: Path) -> None:
