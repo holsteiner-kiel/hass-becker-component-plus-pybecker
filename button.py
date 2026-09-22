@@ -43,6 +43,11 @@ class BeckerPairButton(ButtonEntity):
             via_device=(DOMAIN, entry_id),
         )
 
+    @property
+    def available(self):
+        """Return whether the Becker communicator is currently available."""
+        return self._becker.communicator.is_available()
+
     async def async_press(self):
         """Send the pairing (TRAIN) signal on the cover's channel."""
         await self._becker.pair(self._channel)
