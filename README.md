@@ -101,6 +101,8 @@ Open **Settings → Devices & Services → Becker → Configure**:
 > cannot update a rolling-code counter while an import is being applied.
 > Since version 0.4.4, access to each live SQLite connection is also serialized
 > across Home Assistant's event loop and executor threads.
+> Since version 0.4.5, the setup flow performs a strict connection check while
+> runtime connections retain automatic reconnect behavior.
 
 ## Basic configuration (YAML, deprecated)
 ```yaml
