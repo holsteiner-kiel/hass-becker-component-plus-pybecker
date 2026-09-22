@@ -285,6 +285,11 @@ class BeckerEntity(CoverEntity, RestoreEntity):
             self._callbacks[callback]()
 
     @property
+    def available(self):
+        """Return whether the Becker communicator is currently available."""
+        return self._becker.communicator.is_available()
+
+    @property
     def current_cover_position(self):
         """Return current position of cover. None is unknown, 0 is closed, 100 is fully open."""
         # In TravelCalculator 0 is open, 100 is closed.
