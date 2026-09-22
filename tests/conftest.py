@@ -25,6 +25,7 @@ PACKAGE = ROOT / "custom_components" / "becker"
 COPIED = [
     "__init__.py",
     "button.py",
+    "brand",
     "config_flow.py",
     "const.py",
     "cover.py",
