@@ -380,6 +380,15 @@ class BeckerCommunicator(threading.Thread):
                     match.group(0),
                 )
 
+    def is_available(self) -> bool:
+        """Return whether the communicator can currently accept RF work."""
+        return (
+            self.is_alive()
+            and self._connection.is_open
+            and not self._stop_flag.is_set()
+            and not self._force_stop_flag.is_set()
+        )
+
     def diagnostics(self) -> dict[str, Any]:
         """Return privacy-safe runtime diagnostics."""
         queue_depth = self._write_queue.qsize()

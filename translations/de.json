@@ -32,13 +32,46 @@
           "port": "TCP-Port der Bridge.",
           "filename": "SQLite-Datei mit den Kopplungs- und Rolling-Code-Daten. Behalte den Standardwert bei, außer du migrierst eine vorhandene Datei."
         }
+      },
+      "reconfigure": {
+        "title": "Becker-Verbindung neu konfigurieren",
+        "description": "Wähle den neuen Verbindungstyp für den bestehenden Becker-Eintrag.",
+        "menu_options": {
+          "reconfigure_serial": "Serieller Anschluss (USB-Stick)",
+          "reconfigure_network": "Netzwerk (Seriell-zu-TCP-Bridge)"
+        }
+      },
+      "reconfigure_serial": {
+        "title": "Serielle Verbindung neu konfigurieren",
+        "data": {
+          "device": "Serieller Anschluss",
+          "filename": "Datenbankdatei"
+        },
+        "data_description": {
+          "device": "Neuer Pfad zum Centronic USB-Stick. Die Verbindung wird vor dem Speichern getestet.",
+          "filename": "SQLite-Datei mit Kopplungs- und Rolling-Code-Daten."
+        }
+      },
+      "reconfigure_network": {
+        "title": "Netzwerkverbindung neu konfigurieren",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "filename": "Datenbankdatei"
+        },
+        "data_description": {
+          "host": "Hostname oder IP-Adresse der Seriell-zu-TCP-Bridge.",
+          "port": "TCP-Port der Bridge.",
+          "filename": "SQLite-Datei mit Kopplungs- und Rolling-Code-Daten."
+        }
       }
     },
     "error": {
       "cannot_connect": "Verbindung zum Becker Centronic Stick fehlgeschlagen."
     },
     "abort": {
-      "already_configured": "Dieser Becker Centronic Stick ist bereits eingerichtet."
+      "already_configured": "Dieser Becker Centronic Stick ist bereits eingerichtet.",
+      "reconfigure_successful": "Becker-Verbindung aktualisiert."
     }
   },
   "config_subentries": {
@@ -198,6 +231,16 @@
           }
         }
       }
+    }
+  },
+  "issues": {
+    "connection_unavailable": {
+      "title": "Becker-Verbindung nicht verfügbar",
+      "description": "Home Assistant kann den Becker-Eintrag {entry_title} nicht erreichen. Prüfe USB-Stick bzw. Netzwerk-Bridge und nutze bei geänderter Adresse oder geändertem Gerät „Neu konfigurieren“ in der Integrationsansicht."
+    },
+    "database_path_invalid": {
+      "title": "Ungültiger Becker-Datenbankpfad",
+      "description": "Der für {entry_title} konfigurierte Datenbankpfad ist ungültig. Nutze „Neu konfigurieren“ in der Integrationsansicht und wähle einen vorhandenen Ordner bzw. den Standarddateinamen."
     }
   }
 }

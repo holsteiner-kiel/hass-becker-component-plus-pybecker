@@ -34,7 +34,7 @@ def decode_event_type(command: bytes, argument: bytes) -> str:
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the remote-events entity for the gateway."""
-    async_add_entities([BeckerRemoteEvent(entry.entry_id)])
+    async_add_entities([BeckerRemoteEvent(entry.runtime_data, entry.entry_id)])
 
 
 class BeckerRemoteEvent(EventEntity):
@@ -45,11 +45,17 @@ class BeckerRemoteEvent(EventEntity):
     _attr_device_class = EventDeviceClass.BUTTON
     _attr_event_types = EVENT_TYPES
 
-    def __init__(self, entry_id: str) -> None:
+    def __init__(self, becker, entry_id: str) -> None:
         """Init the remote-events entity."""
+        self._becker = becker
         self._entry_id = entry_id
         self._attr_unique_id = f"{entry_id}_remote"
         self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry_id)})
+
+    @property
+    def available(self):
+        """Return whether the Becker communicator is currently available."""
+        return self._becker.communicator.is_available()
 
     async def async_added_to_hass(self) -> None:
         """Subscribe to received packets on the gateway's dispatcher signal."""

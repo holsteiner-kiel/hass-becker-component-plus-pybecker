@@ -399,3 +399,83 @@ async def test_setup_and_unload(
     )
     await hass.async_block_till_done()
     mock_becker.close.assert_called_once()
+
+
+
+@pytest.mark.usefixtures("mock_setup_entry")
+async def test_reconfigure_serial_entry_to_network(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_test_connection: MagicMock,
+) -> None:
+    """Reconfigure an existing serial entry to a network bridge."""
+    mock_config_entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": SOURCE_RECONFIGURE,
+            "entry_id": mock_config_entry.entry_id,
+        },
+    )
+    assert result["type"] is FlowResultType.MENU
+    assert result["step_id"] == "reconfigure"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "reconfigure_network"}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure_network"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: "becker-bridge.local",
+            CONF_PORT: 5001,
+            CONF_FILENAME: DEFAULT_DB_FILENAME,
+        },
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert mock_config_entry.data[CONF_CONNECTION_TYPE] == CONNECTION_TYPE_NETWORK
+    assert mock_config_entry.data[CONF_DEVICE] == "becker-bridge.local:5001"
+    assert mock_config_entry.data[CONF_HOST] == "becker-bridge.local"
+    assert mock_config_entry.data[CONF_PORT] == 5001
+    assert mock_config_entry.unique_id == TEST_DEVICE
+    mock_test_connection.assert_called_once_with("becker-bridge.local:5001")
+
+
+@pytest.mark.usefixtures("mock_setup_entry")
+async def test_reconfigure_rejects_unreachable_network_target(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_test_connection: MagicMock,
+) -> None:
+    """Do not change entry data when the replacement connection fails."""
+    original_data = dict(mock_config_entry.data)
+    mock_config_entry.add_to_hass(hass)
+    mock_test_connection.side_effect = BeckerConnectionError("offline")
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": SOURCE_RECONFIGURE,
+            "entry_id": mock_config_entry.entry_id,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "reconfigure_network"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: "offline.local",
+            CONF_PORT: 5000,
+            CONF_FILENAME: DEFAULT_DB_FILENAME,
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "cannot_connect"}
+    assert mock_config_entry.data == original_data

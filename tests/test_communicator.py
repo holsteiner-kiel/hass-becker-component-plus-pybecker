@@ -66,3 +66,19 @@ def test_diagnostics_report_runtime_status_without_device_address() -> None:
         "stopping": False,
     }
     assert "192.168.1.10" not in repr(diagnostics)
+
+
+
+def test_availability_requires_thread_open_connection_and_active_state() -> None:
+    communicator = _communicator_with_queue(10)
+    communicator._force_stop_flag = threading.Event()
+    communicator._connection = SimpleNamespace(is_open=True)
+
+    assert communicator.is_available() is True
+
+    communicator._connection.is_open = False
+    assert communicator.is_available() is False
+
+    communicator._connection.is_open = True
+    communicator._stop_flag.set()
+    assert communicator.is_available() is False

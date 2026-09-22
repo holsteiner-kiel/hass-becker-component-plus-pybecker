@@ -109,6 +109,8 @@ def mock_becker() -> Generator[MagicMock]:
         becker = becker_class.return_value
         becker.init_unconfigured_unit = AsyncMock()
         becker.pair = AsyncMock()
+        becker.communicator = MagicMock()
+        becker.communicator.is_available.return_value = True
         yield becker
 
 
