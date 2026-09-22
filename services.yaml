@@ -1,13 +1,25 @@
 # Becker services
 
 pair:
-  description: "Pair with a cover receiver, when master transmitter is in pairing mode"
+  description: "Pair with a cover receiver when the master transmitter is in pairing mode."
   fields:
     channel:
-      description: "Channel to pair the receiver on (1-7)"
+      description: "Channel to pair the receiver on (1-7)."
       example: 1
     unit:
-      description: "Sender unit to use for pairing (1-5)"
+      description: "Sender unit to use for pairing (1-5)."
       example: 1
+    entry_id:
+      description: "Becker config entry to use. Required only when multiple Becker sticks are loaded."
+      selector:
+        config_entry:
+          integration: becker
+
 log_units:
-  description: "Log all configured/paired units"
+  description: "Log all configured/paired units."
+  fields:
+    entry_id:
+      description: "Becker config entry to use. Required only when multiple Becker sticks are loaded."
+      selector:
+        config_entry:
+          integration: becker
