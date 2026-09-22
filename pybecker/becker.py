@@ -77,7 +77,7 @@ class Becker:
     def close(self):
         """Stop communicator thread, close device and database"""
         self.communicator.close()
-        self.db.conn.close()
+        self.db.close()
 
     async def write(self, codes):
         for code in codes:

@@ -98,7 +98,7 @@ def read_units(db_path: str) -> list[dict]:
     try:
         return db.export_units()
     finally:
-        db.conn.close()
+        db.close()
 
 
 def apply_units(db_path: str, rows: list[dict]) -> None:
@@ -107,7 +107,7 @@ def apply_units(db_path: str, rows: list[dict]) -> None:
     try:
         db.import_units(rows)
     finally:
-        db.conn.close()
+        db.close()
 
 
 def is_valid_becker_db(path: Path) -> bool:

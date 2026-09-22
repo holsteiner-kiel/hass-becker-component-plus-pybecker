@@ -99,6 +99,8 @@ Open **Settings → Devices & Services → Becker → Configure**:
 > configured unit as unconfigured) are rejected automatically. Since version
 > 0.4.3, imports are also serialized with live RF commands so a cover command
 > cannot update a rolling-code counter while an import is being applied.
+> Since version 0.4.4, access to each live SQLite connection is also serialized
+> across Home Assistant's event loop and executor threads.
 
 ## Basic configuration (YAML, deprecated)
 ```yaml

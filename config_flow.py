@@ -732,7 +732,7 @@ def _swap_live_db(becker, db_path: Path, uploaded: Path, backup: Path) -> None:
     os.replace(tmp, db_path)
 
     old_db = becker.db
-    old_db.conn.close()
+    old_db.close()
     try:
         becker.db = Database(str(db_path))
     except Exception:
