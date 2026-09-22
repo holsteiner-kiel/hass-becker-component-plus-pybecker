@@ -216,3 +216,56 @@ async def test_import_db_rejects_non_sqlite(
     )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_db"}
+
+
+async def test_import_json_rejects_rolling_code_rollback(
+    hass: HomeAssistant,
+    mock_becker,
+    real_db: str,
+    uploaded_file: Path,
+    mock_process_uploaded_file: MagicMock,
+) -> None:
+    entry = await _setup(hass, real_db, mock_becker)
+    uploaded_file.write_text(
+        dump_state_json(
+            [{"code": "1737b", "increment": 10, "configured": 1}],
+            "2026-08-03T10:00:00",
+        )
+    )
+    form = await _open_import(hass, entry, "import_json")
+    result = await hass.config_entries.options.async_configure(
+        form["flow_id"], {"upload": str(uuid4())}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "rollback_detected"}
+    rows = {r["code"]: r for r in read_units(real_db)}
+    assert rows["1737b"]["increment"] == 77
+
+
+async def test_import_db_rejects_rolling_code_rollback(
+    hass: HomeAssistant,
+    mock_becker,
+    real_db: str,
+    tmp_path: Path,
+    uploaded_file: Path,
+    mock_process_uploaded_file: MagicMock,
+) -> None:
+    entry = await _setup(hass, real_db, mock_becker)
+    replacement = tmp_path / "older.db"
+    Database(str(replacement)).conn.close()
+    apply_units(
+        str(replacement),
+        [{"code": "1737b", "increment": 10, "configured": 1}],
+    )
+    uploaded_file.write_bytes(replacement.read_bytes())
+
+    form = await _open_import(hass, entry, "import_db")
+    result = await hass.config_entries.options.async_configure(
+        form["flow_id"], {"upload": str(uuid4())}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "rollback_detected"}
+    rows = {r["code"]: r for r in read_units(real_db)}
+    assert rows["1737b"]["increment"] == 77
