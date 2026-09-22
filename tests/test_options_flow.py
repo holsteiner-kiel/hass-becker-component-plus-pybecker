@@ -1,5 +1,6 @@
 """Tests for the Becker import/export options flow."""
 
+import asyncio
 from pathlib import Path
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -269,3 +270,39 @@ async def test_import_db_rejects_rolling_code_rollback(
     assert result["errors"] == {"base": "rollback_detected"}
     rows = {r["code"]: r for r in read_units(real_db)}
     assert rows["1737b"]["increment"] == 77
+
+
+async def test_import_json_waits_for_live_operation_lock(
+    hass: HomeAssistant,
+    mock_becker,
+    real_db: str,
+    uploaded_file: Path,
+    mock_process_uploaded_file: MagicMock,
+) -> None:
+    entry = await _setup(hass, real_db, mock_becker)
+    mock_becker.operation_lock = asyncio.Lock()
+    uploaded_file.write_text(
+        dump_state_json(
+            [{"code": "1737b", "increment": 500, "configured": 1}],
+            "2026-08-03T10:00:00",
+        )
+    )
+
+    form = await _open_import(hass, entry, "import_json")
+    await mock_becker.operation_lock.acquire()
+    task = asyncio.create_task(
+        hass.config_entries.options.async_configure(
+            form["flow_id"], {"upload": str(uuid4())}
+        )
+    )
+    await asyncio.sleep(0)
+
+    assert not task.done()
+    assert read_units(real_db)[0]["increment"] == 77
+
+    mock_becker.operation_lock.release()
+    result = await task
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "import_done"
+    assert read_units(real_db)[0]["increment"] == 500

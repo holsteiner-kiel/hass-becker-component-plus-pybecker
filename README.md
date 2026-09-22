@@ -96,7 +96,9 @@ Open **Settings → Devices & Services → Becker → Configure**:
 > of what each receiver last saw. Export right before moving, and don't keep
 > operating covers from the old install afterwards. Since version 0.4.2, imports
 > that would move a stored rolling-code counter backwards (or mark an already
-> configured unit as unconfigured) are rejected automatically.
+> configured unit as unconfigured) are rejected automatically. Since version
+> 0.4.3, imports are also serialized with live RF commands so a cover command
+> cannot update a rolling-code counter while an import is being applied.
 
 ## Basic configuration (YAML, deprecated)
 ```yaml

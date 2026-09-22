@@ -3,6 +3,7 @@
 import logging
 import os
 import shutil
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -454,6 +455,17 @@ class CoverSubentryFlowHandler(ConfigSubentryFlow):
         )
 
 
+@asynccontextmanager
+async def _entry_operation_lock(entry: ConfigEntry):
+    """Serialize database maintenance with live Becker commands."""
+    becker = entry.runtime_data if entry.state is ConfigEntryState.LOADED else None
+    if becker is None or not hasattr(becker, "operation_lock"):
+        yield None
+        return
+    async with becker.operation_lock:
+        yield becker
+
+
 class BeckerOptionsFlow(OptionsFlow):
     """Import and export the shutter database from the UI."""
 
@@ -592,11 +604,24 @@ class BeckerOptionsFlow(OptionsFlow):
                 errors["base"] = "invalid_format"
             if not errors:
                 db_path = await self._db_path()
-                current = await self.hass.async_add_executor_job(read_units, db_path)
-                try:
-                    ensure_no_rollback(current, rows)
-                except StateRollbackError:
-                    errors["base"] = "rollback_detected"
+                async with _entry_operation_lock(self.config_entry):
+                    current = await self.hass.async_add_executor_job(
+                        read_units, db_path
+                    )
+                    try:
+                        ensure_no_rollback(current, rows)
+                    except StateRollbackError:
+                        errors["base"] = "rollback_detected"
+                    if not errors:
+                        backup = self._backup_path(".json")
+                        await self.hass.async_add_executor_job(
+                            _write_text,
+                            backup,
+                            dump_state_json(current, dt_util.now().isoformat()),
+                        )
+                        await self.hass.async_add_executor_job(
+                            apply_units, db_path, rows
+                        )
                 if errors:
                     return self.async_show_form(
                         step_id="import_json",
@@ -611,11 +636,6 @@ class BeckerOptionsFlow(OptionsFlow):
                         ),
                         errors=errors,
                     )
-                backup = self._backup_path(".json")
-                await self.hass.async_add_executor_job(
-                    _write_text, backup, dump_state_json(current, dt_util.now().isoformat())
-                )
-                await self.hass.async_add_executor_job(apply_units, db_path, rows)
                 return self.async_abort(reason="import_done")
 
         return self.async_show_form(
@@ -651,21 +671,31 @@ class BeckerOptionsFlow(OptionsFlow):
                     errors["base"] = "invalid_db"
                 else:
                     db_path = Path(await self._db_path())
-                    current = await self.hass.async_add_executor_job(
-                        read_units, str(db_path)
-                    )
                     incoming = await self.hass.async_add_executor_job(
                         read_units, str(path)
                     )
-                    try:
-                        ensure_no_rollback(current, incoming)
-                    except StateRollbackError:
-                        errors["base"] = "rollback_detected"
-                    if not errors:
-                        backup = Path(self._backup_path(".db"))
-                        await self.hass.async_add_executor_job(
-                            _swap_db, db_path, path, backup
+                    async with _entry_operation_lock(self.config_entry) as becker:
+                        current = await self.hass.async_add_executor_job(
+                            read_units, str(db_path)
                         )
+                        try:
+                            ensure_no_rollback(current, incoming)
+                        except StateRollbackError:
+                            errors["base"] = "rollback_detected"
+                        if not errors:
+                            backup = Path(self._backup_path(".db"))
+                            if becker is None:
+                                await self.hass.async_add_executor_job(
+                                    _swap_db, db_path, path, backup
+                                )
+                            else:
+                                await self.hass.async_add_executor_job(
+                                    _swap_live_db,
+                                    becker,
+                                    db_path,
+                                    path,
+                                    backup,
+                                )
             if not errors:
                 self.hass.config_entries.async_schedule_reload(
                     self.config_entry.entry_id
@@ -689,6 +719,28 @@ def _write_text(path: str, text: str) -> None:
     """Write text to a file (blocking, run in executor)."""
     with open(path, "w", encoding="utf-8") as file:
         file.write(text)
+
+
+def _swap_live_db(becker, db_path: Path, uploaded: Path, backup: Path) -> None:
+    """Atomically replace a live database and reopen the runtime connection."""
+    from .db_transfer import consistent_copy
+    from .pybecker.database import Database
+
+    consistent_copy(db_path, backup)
+    tmp = db_path.with_name(db_path.name + ".new")
+    shutil.copy2(uploaded, tmp)
+    os.replace(tmp, db_path)
+
+    old_db = becker.db
+    old_db.conn.close()
+    try:
+        becker.db = Database(str(db_path))
+    except Exception:
+        restore = db_path.with_name(db_path.name + ".restore")
+        shutil.copy2(backup, restore)
+        os.replace(restore, db_path)
+        becker.db = Database(str(db_path))
+        raise
 
 
 def _swap_db(db_path: Path, uploaded: Path, backup: Path) -> None:

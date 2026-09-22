@@ -56,6 +56,7 @@ class Becker:
             :type device_name: str
             :type init_dummy: bool
         """
+        self.operation_lock = asyncio.Lock()
         self.communicator = BeckerCommunicator(
             device_name,
             callback,
@@ -177,22 +178,22 @@ class Becker:
         self.db.set_unit(unit, test)
 
     async def send(self, channel, cmd, test=False):
+        """Serialize RF commands with database import/export operations."""
+        async with self.operation_lock:
+            un, ch = self._split_channel(channel)
 
-        un, ch = self._split_channel(channel)
+            if not 1 <= ch <= 7 and ch != 15:
+                _LOGGER.error("Channel must be in range of 1-7 or 15")
+                return
 
-        if not 1 <= ch <= 7 and ch != 15:
-            _LOGGER.error("Channel must be in range of 1-7 or 15")
-            return
-
-        # device check implemented in BeckerCommunicator
-
-        if un > 0:
-            unit = self.db.get_unit(un)
-            await self.run_codes(ch, unit, cmd, test)
-        else:
-            units = self.db.get_all_units()
-            for unit in units:
+            # device check implemented in BeckerCommunicator
+            if un > 0:
+                unit = self.db.get_unit(un)
                 await self.run_codes(ch, unit, cmd, test)
+            else:
+                units = self.db.get_all_units()
+                for unit in units:
+                    await self.run_codes(ch, unit, cmd, test)
 
     async def move_up(self, channel):
         """
@@ -249,11 +250,9 @@ class Becker:
         await self.send(channel, "TRAIN")
 
     async def list_units(self):
-        """
-        Return all configured units as a list.
-        """
-
-        return self.db.get_all_units()
+        """Return all configured units as a list."""
+        async with self.operation_lock:
+            return self.db.get_all_units()
 
     @staticmethod
     def _split_channel(channel):
