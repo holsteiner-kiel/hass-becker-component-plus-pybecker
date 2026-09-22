@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.1
+
+A small logging and diagnostics polish release.
+
+- Use configured cover names in movement debug logs instead of Home Assistant's entity-name placeholder
+- Make movement start/stop messages shorter and easier to scan
+- Remove per-second Home Assistant state-refresh callback noise while preserving live position updates
+- Keep RF communication and meaningful movement diagnostics available at debug level
+
 ## 0.5.0
 
 A modernization and reliability milestone for the maintained Becker Home Assistant integration.
