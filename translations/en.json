@@ -32,13 +32,46 @@
           "port": "TCP port of the bridge.",
           "filename": "SQLite file storing the stick's pairing data. Keep the default unless you migrate an existing file."
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Becker connection",
+        "description": "Choose the connection type for the existing Becker entry.",
+        "menu_options": {
+          "reconfigure_serial": "Serial port (USB stick)",
+          "reconfigure_network": "Network (serial-to-TCP bridge)"
+        }
+      },
+      "reconfigure_serial": {
+        "title": "Reconfigure serial connection",
+        "data": {
+          "device": "Serial port",
+          "filename": "Database file"
+        },
+        "data_description": {
+          "device": "New path to the Centronic USB stick. The connection is tested before saving.",
+          "filename": "SQLite file storing pairing and rolling-code data."
+        }
+      },
+      "reconfigure_network": {
+        "title": "Reconfigure network connection",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "filename": "Database file"
+        },
+        "data_description": {
+          "host": "Hostname or IP address of the serial-to-TCP bridge.",
+          "port": "TCP port of the bridge.",
+          "filename": "SQLite file storing pairing and rolling-code data."
+        }
       }
     },
     "error": {
       "cannot_connect": "Failed to connect to the Becker Centronic stick."
     },
     "abort": {
-      "already_configured": "This Becker Centronic stick is already configured."
+      "already_configured": "This Becker Centronic stick is already configured.",
+      "reconfigure_successful": "Becker connection updated."
     }
   },
   "config_subentries": {
@@ -198,6 +231,16 @@
           }
         }
       }
+    }
+  },
+  "issues": {
+    "connection_unavailable": {
+      "title": "Becker connection unavailable",
+      "description": "Home Assistant cannot reach the Becker entry {entry_title}. Check the USB stick or network bridge and use Reconfigure from the integration page if the address or device changed."
+    },
+    "database_path_invalid": {
+      "title": "Invalid Becker database path",
+      "description": "The configured database path for {entry_title} is invalid. Use Reconfigure from the integration page and choose an existing directory or the default database filename."
     }
   }
 }
