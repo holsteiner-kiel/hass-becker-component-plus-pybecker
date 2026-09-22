@@ -572,8 +572,10 @@ class BeckerOptionsFlow(OptionsFlow):
         from .db_transfer import (
             StateFormatError,
             StateJSONError,
+            StateRollbackError,
             apply_units,
             dump_state_json,
+            ensure_no_rollback,
             parse_state_json,
             read_units,
         )
@@ -591,6 +593,24 @@ class BeckerOptionsFlow(OptionsFlow):
             if not errors:
                 db_path = await self._db_path()
                 current = await self.hass.async_add_executor_job(read_units, db_path)
+                try:
+                    ensure_no_rollback(current, rows)
+                except StateRollbackError:
+                    errors["base"] = "rollback_detected"
+                if errors:
+                    return self.async_show_form(
+                        step_id="import_json",
+                        data_schema=vol.Schema(
+                            {
+                                vol.Required(CONF_UPLOAD): FileSelector(
+                                    FileSelectorConfig(
+                                        accept=".json,application/json"
+                                    )
+                                )
+                            }
+                        ),
+                        errors=errors,
+                    )
                 backup = self._backup_path(".json")
                 await self.hass.async_add_executor_job(
                     _write_text, backup, dump_state_json(current, dt_util.now().isoformat())
@@ -614,7 +634,12 @@ class BeckerOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Upload and swap in a raw .db file."""
-        from .db_transfer import is_valid_becker_db
+        from .db_transfer import (
+            StateRollbackError,
+            ensure_no_rollback,
+            is_valid_becker_db,
+            read_units,
+        )
 
         errors: dict[str, str] = {}
         if user_input is not None:
@@ -626,10 +651,21 @@ class BeckerOptionsFlow(OptionsFlow):
                     errors["base"] = "invalid_db"
                 else:
                     db_path = Path(await self._db_path())
-                    backup = Path(self._backup_path(".db"))
-                    await self.hass.async_add_executor_job(
-                        _swap_db, db_path, path, backup
+                    current = await self.hass.async_add_executor_job(
+                        read_units, str(db_path)
                     )
+                    incoming = await self.hass.async_add_executor_job(
+                        read_units, str(path)
+                    )
+                    try:
+                        ensure_no_rollback(current, incoming)
+                    except StateRollbackError:
+                        errors["base"] = "rollback_detected"
+                    if not errors:
+                        backup = Path(self._backup_path(".db"))
+                        await self.hass.async_add_executor_job(
+                            _swap_db, db_path, path, backup
+                        )
             if not errors:
                 self.hass.config_entries.async_schedule_reload(
                     self.config_entry.entry_id
