@@ -125,15 +125,22 @@ class Database:
     def import_units(self, rows):
         """Update increment and configured for known units atomically."""
         c = self.conn.cursor()
+        seen_codes = set()
         try:
             for row in rows:
+                code = row["code"]
+                if code in seen_codes:
+                    raise sqlite3.IntegrityError(
+                        f"Duplicate Becker unit code: {code}"
+                    )
+                seen_codes.add(code)
                 result = c.execute(
                     "UPDATE unit SET increment = ?, configured = ? WHERE code = ?",
-                    (int(row["increment"]), int(row["configured"]), row["code"]),
+                    (int(row["increment"]), int(row["configured"]), code),
                 )
                 if result.rowcount != 1:
                     raise sqlite3.IntegrityError(
-                        f"Unknown or duplicate Becker unit code: {row['code']}"
+                        f"Unknown Becker unit code: {code}"
                     )
             self.conn.commit()
         except (sqlite3.Error, KeyError, TypeError, ValueError):
