@@ -11,6 +11,7 @@ from homeassistant.const import CONF_DEVICE, CONF_FILENAME
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady, ServiceValidationError
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.dispatcher import dispatcher_send
 from homeassistant.helpers.typing import ConfigType
 
@@ -38,6 +39,43 @@ from .pybecker.becker_helper import BeckerConnectionError
 from .pybecker.database import FILE_PATH, SQL_DB_FILE
 
 _LOGGER = logging.getLogger(__name__)
+
+REPAIR_CONNECTION = "connection_unavailable"
+REPAIR_DATABASE = "database_path_invalid"
+
+
+def _repair_issue_id(kind: str, entry_id: str) -> str:
+    """Return the issue id for one config entry."""
+    return f"{kind}_{entry_id}"
+
+
+def _create_repair_issue(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    kind: str,
+    translation_key: str,
+) -> None:
+    """Create an actionable repair issue for a setup problem."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        _repair_issue_id(kind, entry.entry_id),
+        is_fixable=False,
+        is_persistent=False,
+        severity=ir.IssueSeverity.ERROR,
+        translation_key=translation_key,
+        translation_placeholders={"entry_title": entry.title},
+    )
+
+
+def _clear_setup_repairs(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Clear setup-related repair issues after a successful setup."""
+    ir.async_delete_issue(
+        hass, DOMAIN, _repair_issue_id(REPAIR_CONNECTION, entry.entry_id)
+    )
+    ir.async_delete_issue(
+        hass, DOMAIN, _repair_issue_id(REPAIR_DATABASE, entry.entry_id)
+    )
 
 type BeckerConfigEntry = ConfigEntry[Becker]
 
@@ -168,6 +206,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: BeckerConfigEntry) -> bo
             _resolve_db_path, hass.config.config_dir, entry.data.get(CONF_FILENAME)
         )
     except ValueError as err:
+        _create_repair_issue(
+            hass, entry, REPAIR_DATABASE, "database_path_invalid"
+        )
         raise ConfigEntryError(
             f"Invalid Becker database path: {err}"
         ) from err
@@ -191,10 +232,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: BeckerConfigEntry) -> bo
             )
         )
     except BeckerConnectionError as err:
+        _create_repair_issue(
+            hass, entry, REPAIR_CONNECTION, "connection_unavailable"
+        )
         raise ConfigEntryNotReady(
             f"Could not connect to Becker stick on {entry.data[CONF_DEVICE]}: {err}"
         ) from err
     entry.runtime_data = becker
+    _clear_setup_repairs(hass, entry)
 
     # Initialize all units of configured covers in the db file and send a
     # stop command for sync. Sequential on purpose: RF commands must not
