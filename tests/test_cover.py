@@ -15,7 +15,7 @@ from homeassistant.components.cover import (
     DOMAIN as COVER_DOMAIN,
     SERVICE_OPEN_COVER,
 )
-from homeassistant.const import ATTR_ENTITY_ID
+from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 
 ENTITY_ID = "cover.kitchen"
@@ -95,3 +95,17 @@ async def test_numeric_value_template_sets_position(
     await hass.async_block_till_done()
 
     assert hass.states.get(ENTITY_ID).attributes[ATTR_CURRENT_POSITION] == 42
+
+
+
+@pytest.mark.usefixtures("mock_becker")
+async def test_cover_unavailable_when_communicator_is_down(
+    hass: HomeAssistant,
+    mock_becker,
+    mock_config_entry_with_timed_cover: MockConfigEntry,
+) -> None:
+    """Cover reflects communicator availability."""
+    mock_becker.communicator.is_available.return_value = False
+    await setup_integration(hass, mock_config_entry_with_timed_cover)
+
+    assert hass.states.get(ENTITY_ID).state == STATE_UNAVAILABLE
