@@ -80,9 +80,10 @@ class Becker:
         self.db.close()
 
     async def write(self, codes):
+        """Queue RF packets without blocking Home Assistant's event loop."""
         for code in codes:
-            self.communicator.send(finalize_code(code))
-            # Sleep implemented in BeckerCommunicator
+            await asyncio.to_thread(self.communicator.send, finalize_code(code))
+            # Protocol pacing and queue retry sleeps live in BeckerCommunicator.
 
     async def run_codes(self, channel, unit, cmd, test):
         if unit[2] == 0 and cmd != "TRAIN":
