@@ -11,7 +11,7 @@ from .pybecker.database import Database
 
 STATE_VERSION = 1
 KNOWN_UNIT_CODES = ("1737b", "1737c", "1737d", "1737e", "1737f")
-MAX_INCREMENT = 0xFFFF
+MAX_INCREMENT = (1 << 63) - 1
 REQUIRED_UNIT_COLUMNS = ("code", "increment", "configured", "executed")
 
 
@@ -44,7 +44,11 @@ def parse_state_json(raw: str | bytes) -> list[dict]:
     except (json.JSONDecodeError, ValueError, TypeError) as err:
         raise StateJSONError from err
 
-    if not isinstance(data, dict) or not isinstance(data.get("units"), list):
+    if (
+        not isinstance(data, dict)
+        or data.get("version") != STATE_VERSION
+        or not isinstance(data.get("units"), list)
+    ):
         raise StateFormatError
     if not data["units"]:
         raise StateFormatError
@@ -123,7 +127,7 @@ def is_valid_becker_db(path: Path) -> bool:
             if configured not in (0, 1):
                 return False
             seen_codes.add(code)
-        return True
+        return seen_codes == set(KNOWN_UNIT_CODES)
     except (sqlite3.DatabaseError, TypeError, ValueError):
         return False
     finally:
