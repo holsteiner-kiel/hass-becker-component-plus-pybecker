@@ -9,7 +9,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_DEVICE, CONF_FILENAME
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
+from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady, ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.dispatcher import dispatcher_send
 from homeassistant.helpers.typing import ConfigType
@@ -74,7 +74,10 @@ def _resolve_db_path(config_dir: str, filename: str | None) -> str:
         # create a new file in HA config folder
         _LOGGER.warning("Database file %s does not exist. Creating a new file", file)
         return os.path.join(config_dir, file)
-    assert os.path.exists(path), f"Path of filename {filename} invalid or does not exist!"
+    if not os.path.isdir(path):
+        raise ValueError(
+            f"Database directory {path} does not exist or is not a directory"
+        )
     _LOGGER.warning("Database file %s does not exist. Creating a new file", filename)
     return filename
 
@@ -138,9 +141,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: BeckerConfigEntry) -> bool:
     """Set up a Becker Centronic stick from a config entry."""
-    filename = await hass.async_add_executor_job(
-        _resolve_db_path, hass.config.config_dir, entry.data.get(CONF_FILENAME)
-    )
+    try:
+        filename = await hass.async_add_executor_job(
+            _resolve_db_path, hass.config.config_dir, entry.data.get(CONF_FILENAME)
+        )
+    except ValueError as err:
+        raise ConfigEntryError(
+            f"Invalid Becker database path: {err}"
+        ) from err
     _LOGGER.debug("Using database file %s", filename)
 
     try:
