@@ -306,6 +306,118 @@ class BeckerConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id=CONNECTION_TYPE_NETWORK, data_schema=schema, errors=errors
         )
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Reconfigure how Home Assistant connects to the Centronic stick."""
+        return self.async_show_menu(
+            step_id="reconfigure",
+            menu_options=["reconfigure_serial", "reconfigure_network"],
+        )
+
+    async def async_step_reconfigure_serial(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Reconfigure an existing entry to use a serial connection."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            device = user_input[CONF_DEVICE]
+            try:
+                await self.hass.async_add_executor_job(_test_connection, device)
+            except BeckerConnectionError:
+                errors["base"] = "cannot_connect"
+            else:
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data_updates={
+                        CONF_CONNECTION_TYPE: CONNECTION_TYPE_SERIAL,
+                        CONF_DEVICE: device,
+                        CONF_FILENAME: user_input.get(
+                            CONF_FILENAME,
+                            entry.data.get(CONF_FILENAME, DEFAULT_DB_FILENAME),
+                        ),
+                    },
+                )
+
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_DEVICE,
+                    default=entry.data.get(CONF_DEVICE, DEFAULT_DEVICE),
+                ): SerialPortSelector(),
+                vol.Optional(
+                    CONF_FILENAME,
+                    default=entry.data.get(CONF_FILENAME, DEFAULT_DB_FILENAME),
+                ): TextSelector(),
+            }
+        )
+        return self.async_show_form(
+            step_id="reconfigure_serial",
+            data_schema=self.add_suggested_values_to_schema(schema, user_input or {}),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure_network(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Reconfigure an existing entry to use a network connection."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            host = user_input[CONF_HOST]
+            port = user_input[CONF_PORT]
+            device = f"{host}:{port}"
+            try:
+                await self.hass.async_add_executor_job(_test_connection, device)
+            except BeckerConnectionError:
+                errors["base"] = "cannot_connect"
+            else:
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data_updates={
+                        CONF_CONNECTION_TYPE: CONNECTION_TYPE_NETWORK,
+                        CONF_DEVICE: device,
+                        CONF_HOST: host,
+                        CONF_PORT: port,
+                        CONF_FILENAME: user_input.get(
+                            CONF_FILENAME,
+                            entry.data.get(CONF_FILENAME, DEFAULT_DB_FILENAME),
+                        ),
+                    },
+                )
+
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_HOST,
+                    default=entry.data.get(CONF_HOST, ""),
+                ): TextSelector(),
+                vol.Required(
+                    CONF_PORT,
+                    default=entry.data.get(CONF_PORT, DEFAULT_TCP_PORT),
+                ): vol.All(
+                    NumberSelector(
+                        NumberSelectorConfig(
+                            min=1, max=65535, mode=NumberSelectorMode.BOX
+                        )
+                    ),
+                    vol.Coerce(int),
+                ),
+                vol.Optional(
+                    CONF_FILENAME,
+                    default=entry.data.get(CONF_FILENAME, DEFAULT_DB_FILENAME),
+                ): TextSelector(),
+            }
+        )
+        return self.async_show_form(
+            step_id="reconfigure_network",
+            data_schema=self.add_suggested_values_to_schema(schema, user_input or {}),
+            errors=errors,
+        )
+
     async def async_step_import(self, import_data: dict[str, Any]) -> ConfigFlowResult:
         """Import the YAML cover platform configuration."""
         async_create_issue(
