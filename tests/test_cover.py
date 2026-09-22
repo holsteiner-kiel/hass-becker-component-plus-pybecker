@@ -1,6 +1,7 @@
 """Tests for the becker cover entity."""
 
 from datetime import timedelta
+import logging
 
 from freezegun.api import FrozenDateTimeFactory
 import pytest
@@ -57,6 +58,30 @@ async def test_position_updates_during_travel(
 
     # Over a 10 s travel, each 1 s tick should report a higher position.
     assert positions == [10, 20, 30, 40, 50]
+
+
+@pytest.mark.usefixtures("mock_becker")
+async def test_movement_debug_log_uses_cover_name_without_tick_noise(
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+    mock_config_entry_with_timed_cover: MockConfigEntry,
+) -> None:
+    """Movement logs use the configured name and omit internal refresh noise."""
+    caplog.set_level(logging.DEBUG, logger="custom_components.becker.cover")
+    await setup_integration(hass, mock_config_entry_with_timed_cover)
+    caplog.clear()
+
+    await hass.services.async_call(
+        COVER_DOMAIN,
+        SERVICE_OPEN_COVER,
+        {ATTR_ENTITY_ID: ENTITY_ID},
+        blocking=True,
+    )
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert "[Kitchen] Moving: 0 -> 100 (10.0 s)" in messages
+    assert not any(message.startswith("None ") for message in messages)
+    assert not any("update ha-state" in message for message in messages)
 
 
 @pytest.mark.usefixtures("mock_becker")

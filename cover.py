@@ -381,8 +381,8 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         )
         if self._template is None:
             _LOGGER.debug(
-                "%s is travelling from position %s to %s in %s seconds",
-                self.name, self.current_cover_position, position, travel_time,
+                "[%s] Moving: %s -> %s (%.1f s)",
+                self._name, self.current_cover_position, position, travel_time,
             )
             self._tc.start_travel(100 - position)
             # Refresh the position periodically during travel instead of only
@@ -396,7 +396,7 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         self._tc.stop()
         if not (self._cover_features & CoverEntityFeature.SET_POSITION) and self._template is None:
             self._tc.set_position(50)
-        _LOGGER.debug("%s stopped at position %s", self.name, self.current_cover_position)
+        _LOGGER.debug("[%s] Stopped at estimated position %s", self._name, self.current_cover_position)
         self._update_scheduled_ha_state_callback(0)
 
     def _update_scheduled_ha_state_callback(self, delay=None):
@@ -410,15 +410,12 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         self._callbacks.pop('update_ha', lambda: None)()
         # Update now and, while travelling, schedule the next refresh
         if delay is not None:
-            # Update ha-state immediately
-            _LOGGER.debug("%s update ha-state now", self._name)
+            # Update HA state immediately. Keep periodic refreshes silent in the
+            # debug log; movement start/stop and RF traffic provide the useful
+            # operational context without one log line per position tick.
             self.async_schedule_update_ha_state()
             # Schedule update ha-state later
             if delay > 0:
-                _LOGGER.debug(
-                    "%s setup update ha-state callback in %s seconds",
-                    self.name, delay,
-                )
                 self._callbacks['update_ha'] = async_call_later(
                     self.hass, delay, self._async_update_ha_state
                 )
@@ -435,10 +432,6 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         if delay is not None:
             # Stop now or later
             if delay >= 0:
-                _LOGGER.debug(
-                    "%s setup stop travel callback in %s seconds",
-                    self.name, delay,
-                )
                 self._callbacks['travel_stop'] = async_call_later(
                     self.hass, delay, self._async_stop_travel
                 )
