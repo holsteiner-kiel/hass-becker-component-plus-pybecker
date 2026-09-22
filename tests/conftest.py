@@ -30,6 +30,7 @@ COPIED = [
     "const.py",
     "cover.py",
     "db_transfer.py",
+    "diagnostics.py",
     "event.py",
     "http.py",
     "travelcalculator.py",
