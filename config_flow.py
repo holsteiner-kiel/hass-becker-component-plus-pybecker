@@ -140,7 +140,7 @@ PAIR_SCHEMA = vol.Schema(
 
 def _test_connection(device: str) -> None:
     """Open and close the connection to validate the device (blocking)."""
-    BeckerConnection(device).close()
+    BeckerConnection(device, strict=True).close()
 
 
 def _validate_cover_input(
