@@ -2,6 +2,8 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import threading
+import time
 
 from custom_components.becker.pybecker.database import Database
 
@@ -36,7 +38,7 @@ def test_export_units_returns_all_rows(tmp_path: Path) -> None:
     assert len(rows) == 5  # the five seeded units
     first = next(r for r in rows if r["code"] == "1737b")
     assert first == {"code": "1737b", "increment": 42, "configured": 1}
-    db.conn.close()
+    db.close()
 
 
 def test_import_units_updates_matching_codes_only(tmp_path: Path) -> None:
@@ -49,4 +51,30 @@ def test_import_units_updates_matching_codes_only(tmp_path: Path) -> None:
     rows = {r["code"]: r for r in db.export_units()}
     assert rows["1737c"] == {"code": "1737c", "increment": 7, "configured": 1}
     assert rows["1737b"] == {"code": "1737b", "increment": 0, "configured": 0}
-    db.conn.close()
+    db.close()
+
+
+def test_database_methods_serialize_connection_access(tmp_path: Path) -> None:
+    """A second thread waits while another operation owns the database lock."""
+    db = Database(str(tmp_path / "centronic-stick.db"))
+    lock_acquired = threading.Event()
+    release_lock = threading.Event()
+
+    def hold_database_lock() -> None:
+        with db._lock:
+            lock_acquired.set()
+            release_lock.wait(timeout=2)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        holder = executor.submit(hold_database_lock)
+        assert lock_acquired.wait(timeout=1)
+
+        reader = executor.submit(db.get_unit, 1)
+        time.sleep(0.05)
+        assert not reader.done()
+
+        release_lock.set()
+        holder.result(timeout=1)
+        assert reader.result(timeout=1) == ["1737b", 0, 0]
+
+    db.close()
