@@ -35,6 +35,7 @@ DEFAULT_DB_FILENAME = "centronic-stick.db"
 SUBENTRY_TYPE_COVER = "cover"
 CHANNEL_PATTERN = re.compile(r"^(?:[1-7]|[1-5]:[1-7])$")
 CONF_PAIR = "pair"
+CONF_ENTRY_ID = "entry_id"
 CONF_UPLOAD = "upload"
 CONF_STATE_TEXT = "state_text"
 
