@@ -137,14 +137,14 @@
       },
       "import_json": {
         "title": "Import state (JSON)",
-        "description": "Upload a previously exported becker_state.json. The current state is backed up first. This overwrites the increment counters — only import a file exported from this or another Becker install.",
+        "description": "Upload a previously exported becker_state.json. The current state is backed up first. Imports that would move rolling-code counters backwards are blocked.",
         "data": {
           "upload": "State JSON file"
         }
       },
       "import_db": {
         "title": "Import database file",
-        "description": "Upload a previously exported centronic-stick.db. The current file is backed up first and the integration reloads. Only import a genuine Becker database file.",
+        "description": "Upload a previously exported centronic-stick.db. The current file is backed up first and the integration reloads. Imports that would move rolling-code counters backwards are blocked.",
         "data": {
           "upload": "Database file"
         }
@@ -167,7 +167,8 @@
     "error": {
       "invalid_json": "That file is not valid JSON.",
       "invalid_format": "That JSON is not a valid Becker state export.",
-      "invalid_db": "That file is not a valid Becker database."
+      "invalid_db": "That file is not a valid Becker database.",
+      "rollback_detected": "Import blocked because it would move one or more rolling-code counters or configured units backwards."
     },
     "abort": {
       "export_done": "Export ready.",

@@ -94,7 +94,9 @@ Open **Settings → Devices & Services → Becker → Configure**:
 
 > Because Becker uses a rolling code, the imported increment must be at or ahead
 > of what each receiver last saw. Export right before moving, and don't keep
-> operating covers from the old install afterwards.
+> operating covers from the old install afterwards. Since version 0.4.2, imports
+> that would move a stored rolling-code counter backwards (or mark an already
+> configured unit as unconfigured) are rejected automatically.
 
 ## Basic configuration (YAML, deprecated)
 ```yaml
