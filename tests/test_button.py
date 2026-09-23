@@ -57,3 +57,30 @@ async def test_pair_button_unavailable_when_communicator_is_down(
     await setup_integration(hass, mock_config_entry_with_cover)
 
     assert hass.states.get(ENTITY_ID).state == STATE_UNAVAILABLE
+
+
+
+def test_pair_button_availability_handler_schedules_update(
+    mock_becker: MagicMock,
+) -> None:
+    from custom_components.becker.button import BeckerPairButton
+
+    button = BeckerPairButton(mock_becker, "entry-1", "1", "Kitchen")
+    button.schedule_update_ha_state = MagicMock()
+
+    button._handle_availability()
+
+    button.schedule_update_ha_state.assert_called_once()
+
+
+def test_pair_button_available_reflects_communicator(
+    mock_becker: MagicMock,
+) -> None:
+    from custom_components.becker.button import BeckerPairButton
+
+    button = BeckerPairButton(mock_becker, "entry-1", "1", "Kitchen")
+    mock_becker.communicator.is_available.return_value = True
+    assert button.available is True
+
+    mock_becker.communicator.is_available.return_value = False
+    assert button.available is False
