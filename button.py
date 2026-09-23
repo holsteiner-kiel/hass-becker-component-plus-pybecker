@@ -2,12 +2,14 @@
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.const import CONF_FRIENDLY_NAME, EntityCategory
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo, async_get_device_id_by_identifier
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from . import availability_signal_for_entry
 
 from .const import CONF_CHANNEL, DOMAIN, MANUFACTURER, SUBENTRY_TYPE_COVER
+from .pybecker.becker_helper import BeckerConnectionError
 
 PARALLEL_UPDATES = 1
 
@@ -77,4 +79,10 @@ class BeckerPairButton(ButtonEntity):
 
     async def async_press(self):
         """Send the pairing (TRAIN) signal on the cover's channel."""
-        await self._becker.pair(self._channel)
+        try:
+            await self._becker.pair(self._channel)
+        except BeckerConnectionError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="communication_failed",
+            ) from err
