@@ -1,6 +1,6 @@
 """Tests for the becker config flow."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -26,6 +26,7 @@ from custom_components.becker.const import (
     DOMAIN,
     SUBENTRY_TYPE_COVER,
 )
+from custom_components.becker.config_flow import _import_cover_data, _test_connection, _validate_cover_input
 from custom_components.becker.pybecker.becker_helper import BeckerConnectionError
 
 TEST_DEVICE = "/dev/ttyUSB0"
@@ -479,3 +480,144 @@ async def test_reconfigure_rejects_unreachable_network_target(
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "cannot_connect"}
     assert mock_config_entry.data == original_data
+
+
+
+def test_validate_cover_input_rejects_bad_remote_id() -> None:
+    errors = _validate_cover_input(
+        {CONF_CHANNEL: "1", CONF_REMOTE_ID: "not-a-remote"},
+        require_channel=True,
+    )
+    assert errors == {CONF_REMOTE_ID: "invalid_remote_id"}
+
+
+def test_import_cover_data_serializes_template() -> None:
+    template = MagicMock()
+    template.template = "{{ 42 }}"
+    data = _import_cover_data(
+        "roof",
+        {
+            CONF_CHANNEL: "3",
+            "value_template": template,
+            CONF_INTERMEDIATE_DISABLE: False,
+        },
+    )
+    assert data[CONF_CHANNEL] == "3"
+    assert data["friendly_name"] == "roof"
+    assert data["value_template"] == "{{ 42 }}"
+    assert data[CONF_INTERMEDIATE_POSITION] is True
+
+
+def test_test_connection_closes_transport() -> None:
+    connection = MagicMock()
+    with patch(
+        "custom_components.becker.config_flow.BeckerConnection",
+        return_value=connection,
+    ) as cls:
+        _test_connection("127.0.0.1:5000")
+
+    cls.assert_called_once_with("127.0.0.1:5000", strict=True)
+    connection.close.assert_called_once()
+
+
+@pytest.mark.usefixtures("mock_setup_entry")
+async def test_user_network_cannot_connect(
+    hass: HomeAssistant, mock_test_connection: MagicMock
+) -> None:
+    mock_test_connection.side_effect = BeckerConnectionError("offline")
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": CONNECTION_TYPE_NETWORK}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_HOST: "offline.local", CONF_PORT: 5000}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "cannot_connect"}
+
+
+@pytest.mark.usefixtures("mock_setup_entry")
+async def test_import_network_flow_defaults_port(
+    hass: HomeAssistant,
+) -> None:
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_IMPORT},
+        data={
+            CONF_DEVICE: "becker-bridge.local",
+            "covers": {},
+        },
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_CONNECTION_TYPE] == CONNECTION_TYPE_NETWORK
+    assert result["data"][CONF_DEVICE] == "becker-bridge.local:5000"
+    assert result["data"][CONF_HOST] == "becker-bridge.local"
+    assert result["data"][CONF_PORT] == 5000
+
+
+@pytest.mark.usefixtures("mock_setup_entry")
+async def test_reconfigure_serial_success(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_test_connection: MagicMock,
+) -> None:
+    mock_config_entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": SOURCE_RECONFIGURE,
+            "entry_id": mock_config_entry.entry_id,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "reconfigure_serial"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_DEVICE: "/dev/ttyUSB9",
+            CONF_FILENAME: "new.db",
+        },
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert mock_config_entry.data[CONF_DEVICE] == "/dev/ttyUSB9"
+    assert mock_config_entry.data[CONF_FILENAME] == "new.db"
+    mock_test_connection.assert_called_once_with("/dev/ttyUSB9")
+
+
+@pytest.mark.usefixtures("mock_setup_entry")
+async def test_reconfigure_serial_connection_failure(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_test_connection: MagicMock,
+) -> None:
+    original = dict(mock_config_entry.data)
+    mock_config_entry.add_to_hass(hass)
+    mock_test_connection.side_effect = BeckerConnectionError("offline")
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": SOURCE_RECONFIGURE,
+            "entry_id": mock_config_entry.entry_id,
+        },
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "reconfigure_serial"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_DEVICE: "/dev/ttyUSB9"},
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "cannot_connect"}
+    assert mock_config_entry.data == original
