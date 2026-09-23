@@ -33,6 +33,94 @@ The project builds on the original work by [ole](https://github.com/ole1986), [N
 The bundled `pybecker/` code is based on Nicolas Berthel's **pybecker 1.1.0** and is maintained as an embedded fork for this Home Assistant integration. The original Centronic RF frame generation and rolling-code format are retained, while this fork adds Home Assistant-specific reliability improvements such as asynchronous command handling, serialized database access, reconnect and retry behavior, runtime availability reporting, diagnostics, and safe state import/export.
 
 
+## Installation
+
+### HACS
+
+1. Add this repository to HACS as a custom integration repository if it is not already available in your HACS installation.
+2. Install **Becker Centronic**.
+3. Restart Home Assistant.
+4. Go to **Settings → Devices & services → Add integration** and search for **Becker**.
+
+### Manual installation
+
+Copy the integration files to `/config/custom_components/becker/`, restart Home Assistant, then add **Becker** from **Settings → Devices & services**.
+
+## Supported hardware
+
+The integration is designed for Becker Centronic RF installations controlled through a Becker Centronic USB stick.
+
+Known USB stick order numbers:
+
+- **4035 200 041 0**
+- **4035 000 041 0**
+
+Supported end devices include Becker Centronic roller shutters, blinds and sun-protection receivers that can be paired with the USB stick. Compatible Roto roof-window installations using Becker RF remotes are also known to work.
+
+The integration can connect to the stick either locally over USB/serial or over a serial-to-TCP bridge such as ser2net.
+
+## How state is updated
+
+Becker Centronic is primarily a one-way RF system: the cover normally does not report its physical position back to Home Assistant.
+
+Home Assistant therefore updates cover state from one or more of these sources:
+
+- commands sent by Home Assistant;
+- configured travel times, which are used to estimate position while a cover moves;
+- received commands from configured physical Becker remotes;
+- an optional position template backed by another Home Assistant entity.
+
+The **Connection** diagnostic binary sensor reflects live communicator availability. Received physical-remote packets are also exposed through the **Remote** event entity and the `becker_remote_packet_received` event.
+
+## Example use cases
+
+Typical uses include:
+
+- controlling existing Becker shutters and blinds from Home Assistant without replacing the motors or receivers;
+- keeping Home Assistant position estimates in sync when wall or hand-held Becker remotes are used;
+- using a roof-window or rain sensor as an external source for position state;
+- reacting to Becker remote button presses in Home Assistant automations;
+- connecting the USB stick through a serial-to-TCP bridge when Home Assistant is hosted away from the stick.
+
+### Automation example: react to a Becker remote
+
+The integration fires `becker_remote_packet_received` whenever it receives a supported remote packet. The following example reacts to the UP button of a specific remote/channel:
+
+```yaml
+automation:
+  - alias: "Becker remote - hallway light"
+    triggers:
+      - trigger: event
+        event_type: becker_remote_packet_received
+        event_data:
+          unit: "12345"
+          channel: "2"
+          command: "up"
+    actions:
+      - action: light.toggle
+        target:
+          entity_id: light.hallway
+```
+
+Use the **Remote** event entity or debug logging to determine the remote ID and channel for your installation.
+
+## Known limitations
+
+- Becker Centronic covers do not provide native position feedback. Position control is estimated from travel time unless an external position template is configured.
+- RF commands use rolling-code counters stored in Home Assistant. Restoring an older database or state export can desynchronize a receiver, so rollback protection is deliberately enforced.
+- Automatic USB discovery is not currently implemented; the serial device is selected during setup.
+- Pairing still requires the target Becker receiver to be placed into its learn/pairing mode.
+- Network connections require a transparent serial-to-TCP bridge; the integration does not configure or manage that bridge.
+- Legacy YAML configuration is supported for migration but is deprecated in favor of UI configuration.
+
+## Removal
+
+To remove the integration, go to **Settings → Devices & services → Becker**, open the integration menu and choose **Delete**.
+
+Removing the Home Assistant config entry does not unpair the physical Becker receiver from the Centronic USB stick. If you also want to change the receiver's paired transmitters, follow the Becker receiver/remote instructions before deleting your Home Assistant state.
+
+Before deleting or migrating an installation, export the Becker state or database if you may need the rolling-code state again later.
+
 ## Configuration via the UI (recommended)
 Since version 0.4.0 the integration is set up in the Home Assistant UI:
 
