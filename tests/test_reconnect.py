@@ -36,6 +36,8 @@ def _build_communicator(connection: _FlakyConnection) -> BeckerCommunicator:
     communicator._force_stop_flag = threading.Event()
     communicator._write_queue = queue.Queue(maxsize=10)
     communicator._callback = lambda packet: None
+    communicator._availability_callback = None
+    communicator._last_available = None
     communicator._connection = connection
     communicator._read_buffer = bytes()
     communicator._timeout = 0.0
