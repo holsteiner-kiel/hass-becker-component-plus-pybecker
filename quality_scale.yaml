@@ -12,9 +12,7 @@ brands: done
 
 common-modules: done
 
-config-flow-test-coverage:
-  status: todo
-  comment: Config-flow coverage is high but not yet complete.
+config-flow-test-coverage: done
 
 config-flow: done
 
