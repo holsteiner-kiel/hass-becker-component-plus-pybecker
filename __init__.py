@@ -77,6 +77,28 @@ def _clear_setup_repairs(hass: HomeAssistant, entry: ConfigEntry) -> None:
         hass, DOMAIN, _repair_issue_id(REPAIR_DATABASE, entry.entry_id)
     )
 
+
+def _remove_stale_cover_devices(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Remove Becker cover devices that no longer have a config subentry."""
+    device_registry = dr.async_get(hass)
+    expected_identifiers = {
+        (DOMAIN, f"{entry.entry_id}_{subentry.data[CONF_CHANNEL]}")
+        for subentry in entry.subentries.values()
+        if subentry.subentry_type == SUBENTRY_TYPE_COVER
+    }
+    root_identifier = (DOMAIN, entry.entry_id)
+
+    for device in dr.async_entries_for_config_entry(
+        device_registry, entry.entry_id
+    ):
+        becker_identifiers = {
+            identifier for identifier in device.identifiers if identifier[0] == DOMAIN
+        }
+        if root_identifier in becker_identifiers:
+            continue
+        if becker_identifiers and becker_identifiers.isdisjoint(expected_identifiers):
+            device_registry.async_remove_device(device.id)
+
 type BeckerConfigEntry = ConfigEntry[Becker]
 
 PAIR_SCHEMA = vol.Schema(
@@ -292,6 +314,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: BeckerConfigEntry) -> bo
         name="Centronic stick",
         model="Centronic USB stick",
     )
+    _remove_stale_cover_devices(hass, entry)
 
     entry.async_on_unload(entry.add_update_listener(_update_listener))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
