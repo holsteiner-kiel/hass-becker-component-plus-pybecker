@@ -247,5 +247,16 @@
       "title": "Invalid Becker database path",
       "description": "The configured database path for {entry_title} is invalid. Use Reconfigure from the integration page and choose an existing directory or the default database filename."
     }
+  },
+  "exceptions": {
+    "no_loaded_entries": {
+      "message": "No loaded Becker configuration entry was found."
+    },
+    "entry_not_loaded": {
+      "message": "Becker configuration entry {entry_id} is not loaded."
+    },
+    "entry_id_required": {
+      "message": "Multiple Becker configuration entries are loaded. Specify an entry."
+    }
   }
 }
