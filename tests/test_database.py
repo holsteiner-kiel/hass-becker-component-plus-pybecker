@@ -2,8 +2,10 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import sqlite3
 import threading
 import time
+from unittest.mock import MagicMock
 
 from custom_components.becker.pybecker.database import Database
 
@@ -197,22 +199,27 @@ def test_migrate_rolls_back_on_os_error(tmp_path: Path, monkeypatch) -> None:
         "builtins.open",
         MagicMock(side_effect=OSError("broken legacy file")),
     )
-    rollback = MagicMock(wraps=db.conn.rollback)
-    monkeypatch.setattr(db.conn, "rollback", rollback, raising=False)
 
     db.migrate()
 
+    # The real SQLite connection remains usable after the rollback path.
+    assert db.get_unit(1) == ["1737b", 0, 0]
     db.close()
 
 
-def test_init_dummy_rolls_back_on_database_error(tmp_path: Path, monkeypatch) -> None:
+def test_init_dummy_rolls_back_on_database_error(tmp_path: Path) -> None:
     db = Database(str(tmp_path / "dummy-error.db"))
+    real_conn = db.conn
+    fake_conn = MagicMock()
     cursor = MagicMock()
-    cursor.execute.side_effect = __import__("sqlite3").OperationalError("boom")
-    monkeypatch.setattr(db.conn, "cursor", lambda: cursor, raising=False)
+    cursor.execute.side_effect = sqlite3.OperationalError("boom")
+    fake_conn.cursor.return_value = cursor
+    db.conn = fake_conn
 
     db.init_dummy()
 
+    fake_conn.rollback.assert_called_once()
+    db.conn = real_conn
     db.close()
 
 
