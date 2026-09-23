@@ -7,7 +7,9 @@ import pytest
 from custom_components.becker.db_transfer import (
     StateFormatError,
     StateJSONError,
+    StateRollbackError,
     dump_state_json,
+    ensure_no_rollback,
     parse_state_json,
 )
 
@@ -111,3 +113,116 @@ def test_consistent_copy_produces_valid_db(tmp_path: Path) -> None:
     consistent_copy(Path(src), dst)
     assert is_valid_becker_db(dst) is True
     assert {r["code"]: r for r in read_units(str(dst))}["1737b"]["increment"] == 5
+
+
+
+def test_parse_state_json_rejects_non_object_item() -> None:
+    with pytest.raises(StateFormatError):
+        parse_state_json(json.dumps({"version": 1, "units": ["bad"]}))
+
+
+def test_ensure_no_rollback_allows_newer_and_unknown_units() -> None:
+    current = [{"code": "1737b", "increment": 10, "configured": 1}]
+    incoming = [
+        {"code": "1737b", "increment": 11, "configured": 1},
+        {"code": "1737c", "increment": 1, "configured": 0},
+    ]
+
+    ensure_no_rollback(current, incoming)
+
+
+def test_ensure_no_rollback_rejects_counter_decrease() -> None:
+    current = [{"code": "1737b", "increment": 10, "configured": 1}]
+    incoming = [{"code": "1737b", "increment": 9, "configured": 1}]
+
+    with pytest.raises(StateRollbackError):
+        ensure_no_rollback(current, incoming)
+
+
+def test_ensure_no_rollback_rejects_unconfiguring_unit() -> None:
+    current = [{"code": "1737b", "increment": 10, "configured": 1}]
+    incoming = [{"code": "1737b", "increment": 10, "configured": 0}]
+
+    with pytest.raises(StateRollbackError):
+        ensure_no_rollback(current, incoming)
+
+
+def test_is_valid_becker_db_false_for_empty_unit_table(tmp_path: Path) -> None:
+    import sqlite3
+
+    path = tmp_path / "empty.db"
+    con = sqlite3.connect(path)
+    con.execute(
+        "CREATE TABLE unit (code NVARCHAR(5), increment INTEGER(4), configured BIT, executed INTEGER)"
+    )
+    con.commit()
+    con.close()
+
+    assert is_valid_becker_db(path) is False
+
+
+def test_is_valid_becker_db_false_for_duplicate_unit_code(tmp_path: Path) -> None:
+    import sqlite3
+
+    path = tmp_path / "duplicate.db"
+    con = sqlite3.connect(path)
+    con.execute(
+        "CREATE TABLE unit (code NVARCHAR(5), increment INTEGER(4), configured BIT, executed INTEGER)"
+    )
+    rows = [
+        ("1737b", 1, 1, 0),
+        ("1737b", 2, 1, 0),
+        ("1737c", 0, 0, 0),
+        ("1737d", 0, 0, 0),
+        ("1737e", 0, 0, 0),
+        ("1737f", 0, 0, 0),
+    ]
+    con.executemany("INSERT INTO unit VALUES (?, ?, ?, ?)", rows)
+    con.commit()
+    con.close()
+
+    assert is_valid_becker_db(path) is False
+
+
+def test_is_valid_becker_db_false_for_non_integer_increment(tmp_path: Path) -> None:
+    import sqlite3
+
+    path = tmp_path / "bad-increment.db"
+    con = sqlite3.connect(path)
+    con.execute(
+        "CREATE TABLE unit (code NVARCHAR(5), increment INTEGER(4), configured BIT, executed INTEGER)"
+    )
+    rows = [
+        ("1737b", "bad", 1, 0),
+        ("1737c", 0, 0, 0),
+        ("1737d", 0, 0, 0),
+        ("1737e", 0, 0, 0),
+        ("1737f", 0, 0, 0),
+    ]
+    con.executemany("INSERT INTO unit VALUES (?, ?, ?, ?)", rows)
+    con.commit()
+    con.close()
+
+    assert is_valid_becker_db(path) is False
+
+
+def test_is_valid_becker_db_false_for_bad_configured_value(tmp_path: Path) -> None:
+    import sqlite3
+
+    path = tmp_path / "bad-configured.db"
+    con = sqlite3.connect(path)
+    con.execute(
+        "CREATE TABLE unit (code NVARCHAR(5), increment INTEGER(4), configured BIT, executed INTEGER)"
+    )
+    rows = [
+        ("1737b", 0, 2, 0),
+        ("1737c", 0, 0, 0),
+        ("1737d", 0, 0, 0),
+        ("1737e", 0, 0, 0),
+        ("1737f", 0, 0, 0),
+    ]
+    con.executemany("INSERT INTO unit VALUES (?, ?, ?, ?)", rows)
+    con.commit()
+    con.close()
+
+    assert is_valid_becker_db(path) is False

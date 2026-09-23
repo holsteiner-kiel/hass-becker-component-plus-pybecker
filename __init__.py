@@ -142,13 +142,11 @@ def _availability_callback(hass: HomeAssistant, entry_id: str) -> None:
     )
 
 
-def _packet_callback(hass: HomeAssistant, entry_id: str, packet) -> None:
-    """Forward a received RF packet (runs in the communicator thread)."""
+def _dispatch_packet_on_loop(hass: HomeAssistant, entry_id: str, packet) -> None:
+    """Forward a received packet from Home Assistant's event-loop thread."""
     _LOGGER.debug("Received packet for dispatcher")
     dispatcher_send(hass, signal_for_entry(entry_id), packet)
 
-    # Also fire an explicit event that external applications can listen to
-    # if that is of use to them.
     data = {
         "unit": codecs.decode(packet.group("unit_id"), "ascii"),
         "channel": codecs.decode(packet.group("channel"), "ascii"),
@@ -158,6 +156,16 @@ def _packet_callback(hass: HomeAssistant, entry_id: str, packet) -> None:
     if command_name:
         data["command"] = command_name[0]
     hass.bus.fire(f"{DOMAIN}_{REMOTE_PACKET_EVENT}", data)
+
+
+def _packet_callback(hass: HomeAssistant, entry_id: str, packet) -> None:
+    """Forward a received RF packet safely from the communicator thread."""
+    hass.loop.call_soon_threadsafe(
+        _dispatch_packet_on_loop,
+        hass,
+        entry_id,
+        packet,
+    )
 
 
 def _get_becker(hass: HomeAssistant, entry_id: str | None = None) -> Becker:

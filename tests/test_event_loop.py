@@ -4,6 +4,7 @@ import asyncio
 import threading
 from unittest.mock import MagicMock
 
+from custom_components.becker import _packet_callback
 from custom_components.becker.pybecker.becker import Becker
 from custom_components.becker.pybecker.becker_helper import finalize_code
 
@@ -56,3 +57,22 @@ async def test_write_preserves_packet_order() -> None:
     assert [call.args[0] for call in becker.communicator.send.call_args_list] == [
         finalize_code(code) for code in codes
     ]
+
+
+
+def test_packet_callback_marshals_to_home_assistant_event_loop() -> None:
+    """RF receive callback never touches Home Assistant directly from its thread."""
+    hass = MagicMock()
+    packet = MagicMock()
+
+    _packet_callback(hass, "entry-1", packet)
+
+    hass.loop.call_soon_threadsafe.assert_called_once()
+    callback, callback_hass, entry_id, callback_packet = (
+        hass.loop.call_soon_threadsafe.call_args.args
+    )
+    assert callback_hass is hass
+    assert entry_id == "entry-1"
+    assert callback_packet is packet
+    # The actual HA dispatcher/event-bus work is deferred to the loop callback.
+    assert callback.__name__ == "_dispatch_packet_on_loop"

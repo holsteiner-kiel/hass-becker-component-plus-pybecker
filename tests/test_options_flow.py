@@ -2,7 +2,8 @@
 
 import asyncio
 from pathlib import Path
-from unittest.mock import MagicMock
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -306,3 +307,70 @@ async def test_import_json_waits_for_live_operation_lock(
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "import_done"
     assert read_units(real_db)[0]["increment"] == 500
+
+
+
+async def test_export_db_submit_aborts(
+    hass: HomeAssistant, mock_becker, real_db: str
+) -> None:
+    entry = await _setup(hass, real_db, mock_becker)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    form = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "export_db"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        form["flow_id"], {}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "export_done"
+
+
+async def test_import_json_rejects_invalid_format(
+    hass: HomeAssistant,
+    mock_becker,
+    real_db: str,
+    uploaded_file: Path,
+    mock_process_uploaded_file: MagicMock,
+) -> None:
+    import json
+
+    entry = await _setup(hass, real_db, mock_becker)
+    uploaded_file.write_text(json.dumps({"version": 1, "units": []}))
+    form = await _open_import(hass, entry, "import_json")
+    result = await hass.config_entries.options.async_configure(
+        form["flow_id"], {"upload": str(uuid4())}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_format"}
+
+
+async def test_import_db_uses_offline_swap_when_entry_not_loaded(
+    hass: HomeAssistant,
+    mock_becker,
+    real_db: str,
+    tmp_path: Path,
+    uploaded_file: Path,
+    mock_process_uploaded_file: MagicMock,
+) -> None:
+    entry = await _setup(hass, real_db, mock_becker)
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    replacement = tmp_path / "offline-replacement.db"
+    Database(str(replacement)).conn.close()
+    apply_units(
+        str(replacement),
+        [{"code": "1737b", "increment": 901, "configured": 1}],
+    )
+    uploaded_file.write_bytes(replacement.read_bytes())
+
+    form = await _open_import(hass, entry, "import_db")
+    result = await hass.config_entries.options.async_configure(
+        form["flow_id"], {"upload": str(uuid4())}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "import_done"
+    rows = {r["code"]: r for r in read_units(real_db)}
+    assert rows["1737b"]["increment"] == 901

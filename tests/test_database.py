@@ -2,8 +2,10 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import sqlite3
 import threading
 import time
+from unittest.mock import MagicMock
 
 from custom_components.becker.pybecker.database import Database
 
@@ -25,6 +27,7 @@ def test_connection_usable_across_threads(tmp_path: Path) -> None:
     # Access from a different (here: the main) thread must not raise.
     assert database.get_all_units() == []
     assert database.get_unit(1) == ["1737b", 0, 0]
+    database.close()
 
 
 def test_export_units_returns_all_rows(tmp_path: Path) -> None:
@@ -77,4 +80,166 @@ def test_database_methods_serialize_connection_access(tmp_path: Path) -> None:
         holder.result(timeout=1)
         assert reader.result(timeout=1) == ["1737b", 0, 0]
 
+    db.close()
+
+
+
+def test_database_context_manager_closes_connection(tmp_path: Path) -> None:
+    path = str(tmp_path / "ctx.db")
+    with Database(path) as db:
+        assert db.get_unit(1) == ["1737b", 0, 0]
+
+    import sqlite3
+    import pytest
+
+    with pytest.raises(sqlite3.ProgrammingError):
+        db.get_unit(1)
+
+
+def test_init_dummy_configures_first_unit(tmp_path: Path, monkeypatch) -> None:
+    db = Database(str(tmp_path / "dummy.db"))
+    monkeypatch.setattr(
+        "custom_components.becker.pybecker.database.randrange",
+        lambda *args: 23,
+    )
+
+    db.init_dummy()
+
+    assert db.get_unit(1) == ["1737b", 23, 1]
+    db.close()
+
+
+def test_get_rowid_add_remove_unit(tmp_path: Path) -> None:
+    db = Database(str(tmp_path / "units.db"))
+
+    assert db.get_rowid_from_unit("fffff") == -1
+    db.add_unit(["fffff", 9, 1])
+    assert db.get_rowid_from_unit("fffff") > 0
+    db.remove_unit("fffff")
+    assert db.get_rowid_from_unit("fffff") == -1
+
+    db.close()
+
+
+def test_set_unit_by_code_and_row_index(tmp_path: Path, monkeypatch) -> None:
+    db = Database(str(tmp_path / "set.db"))
+    monkeypatch.setattr(
+        "custom_components.becker.pybecker.database.time.time",
+        lambda: 123456,
+    )
+
+    db.set_unit(["1737b", 12, 1])
+    assert db.get_unit(1) == ["1737b", 12, 1]
+
+    db.set_unit(["2", 22, 1])
+    assert db.get_unit(2) == ["1737c", 22, 1]
+    db.close()
+
+
+def test_set_unit_test_mode_rolls_back(tmp_path: Path) -> None:
+    db = Database(str(tmp_path / "rollback.db"))
+    before = db.get_unit(1)
+
+    db.set_unit(["1737b", 99, 1], test=True)
+
+    assert db.get_unit(1) == before
+    db.close()
+
+
+
+def test_migrate_legacy_num_file(tmp_path: Path, monkeypatch) -> None:
+    legacy_dir = tmp_path / "legacy"
+    legacy_dir.mkdir()
+    legacy_file = legacy_dir / "centronic-stick.num"
+    legacy_file.write_text("37")
+
+    monkeypatch.setattr(
+        "custom_components.becker.pybecker.database.FILE_PATH",
+        str(legacy_dir),
+    )
+
+    db = Database(str(tmp_path / "migrate.db"))
+
+    assert db.get_unit(1) == ["1737b", 37, 1]
+    assert not legacy_file.exists()
+    db.close()
+
+
+def test_import_units_rolls_back_invalid_value(tmp_path: Path) -> None:
+    import pytest
+
+    db = Database(str(tmp_path / "invalid-import.db"))
+    before = db.export_units()
+
+    with pytest.raises((TypeError, ValueError)):
+        db.import_units(
+            [{"code": "1737b", "increment": "not-an-int", "configured": 1}]
+        )
+
+    assert db.export_units() == before
+    db.close()
+
+
+def test_get_unit_returns_none_for_unknown_row(tmp_path: Path) -> None:
+    db = Database(str(tmp_path / "missing-row.db"))
+
+    assert db.get_unit(999) is None
+
+    db.close()
+
+
+
+def test_migrate_rolls_back_on_os_error(tmp_path: Path, monkeypatch) -> None:
+    db = Database(str(tmp_path / "migrate-error.db"))
+    monkeypatch.setattr(
+        "custom_components.becker.pybecker.database.os.path.isfile",
+        lambda path: True,
+    )
+    monkeypatch.setattr(
+        "builtins.open",
+        MagicMock(side_effect=OSError("broken legacy file")),
+    )
+
+    db.migrate()
+
+    # The real SQLite connection remains usable after the rollback path.
+    assert db.get_unit(1) == ["1737b", 0, 0]
+    db.close()
+
+
+def test_init_dummy_rolls_back_on_database_error(tmp_path: Path) -> None:
+    db = Database(str(tmp_path / "dummy-error.db"))
+    real_conn = db.conn
+    fake_conn = MagicMock()
+    cursor = MagicMock()
+    cursor.execute.side_effect = sqlite3.OperationalError("boom")
+    fake_conn.cursor.return_value = cursor
+    db.conn = fake_conn
+
+    db.init_dummy()
+
+    fake_conn.rollback.assert_called_once()
+    db.conn = real_conn
+    db.close()
+
+
+def test_output_handles_never_and_previously_executed_units(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    import logging
+    import sqlite3
+
+    db = Database(str(tmp_path / "output.db"))
+    db.set_unit(["1737b", 10, 1])
+    db.conn.execute(
+        "UPDATE unit SET executed = ? WHERE code = ?",
+        (1234567890, "1737b"),
+    )
+    db.conn.commit()
+    caplog.set_level(logging.INFO)
+
+    db.output()
+
+    assert "1737b" in caplog.text
+    assert "(unknown)" in caplog.text
     db.close()
