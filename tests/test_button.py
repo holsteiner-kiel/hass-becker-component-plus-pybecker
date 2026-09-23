@@ -11,6 +11,9 @@ from homeassistant.components.button import (
 )
 from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+
+from custom_components.becker.pybecker.becker_helper import BeckerConnectionError
 
 ENTITY_ID = "button.kitchen_pair"
 
@@ -84,3 +87,20 @@ def test_pair_button_available_reflects_communicator(
 
     mock_becker.communicator.is_available.return_value = False
     assert button.available is False
+
+@pytest.mark.asyncio
+async def test_pair_button_translates_connection_failure(
+    mock_becker: MagicMock,
+) -> None:
+    """Pair button exposes communicator failures as Home Assistant errors."""
+    from custom_components.becker.button import BeckerPairButton
+
+    mock_becker.pair.side_effect = BeckerConnectionError("offline")
+    button = BeckerPairButton(mock_becker, "entry-1", "1", "Kitchen")
+
+    with pytest.raises(HomeAssistantError) as exc:
+        await button.async_press()
+
+    assert exc.value.translation_domain == "becker"
+    assert exc.value.translation_key == "communication_failed"
+

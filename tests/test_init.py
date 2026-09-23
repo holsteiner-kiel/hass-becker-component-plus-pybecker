@@ -18,6 +18,7 @@ from custom_components.becker import (
     _dispatch_packet_on_loop,
     _get_becker,
     _packet_callback,
+    _remove_stale_cover_devices,
     _repair_issue_id,
     _resolve_db_path,
     _update_listener,
@@ -62,8 +63,11 @@ def test_get_becker_rejects_no_loaded_entries() -> None:
     hass = MagicMock()
     hass.config_entries.async_loaded_entries.return_value = []
 
-    with pytest.raises(ServiceValidationError, match="No loaded Becker"):
+    with pytest.raises(ServiceValidationError) as exc:
         _get_becker(hass)
+
+    assert exc.value.translation_domain == "becker"
+    assert exc.value.translation_key == "no_loaded_entries"
 
 
 def test_availability_callback_marshals_to_loop() -> None:
@@ -177,8 +181,11 @@ def test_get_becker_rejects_unknown_entry_id() -> None:
     hass = MagicMock()
     hass.config_entries.async_loaded_entries.return_value = [entry]
 
-    with pytest.raises(ServiceValidationError, match="is not loaded"):
+    with pytest.raises(ServiceValidationError) as exc:
         _get_becker(hass, "missing")
+
+    assert exc.value.translation_key == "entry_not_loaded"
+    assert exc.value.translation_placeholders == {"entry_id": "missing"}
 
 
 def test_get_becker_requires_entry_id_when_multiple_loaded() -> None:
@@ -189,8 +196,10 @@ def test_get_becker_requires_entry_id_when_multiple_loaded() -> None:
     hass = MagicMock()
     hass.config_entries.async_loaded_entries.return_value = entries
 
-    with pytest.raises(ServiceValidationError, match="Multiple Becker"):
+    with pytest.raises(ServiceValidationError) as exc:
         _get_becker(hass)
+
+    assert exc.value.translation_key == "entry_id_required"
 
 
 def test_get_becker_returns_only_loaded_entry() -> None:
@@ -278,3 +287,65 @@ async def test_setup_entry_reports_connection_failure() -> None:
             await async_setup_entry(hass, entry)
 
     create_issue.assert_called_once()
+
+def test_remove_stale_cover_devices_keeps_root_and_current_cover() -> None:
+    hass = MagicMock()
+    registry = MagicMock()
+    current = SimpleNamespace(
+        id="current",
+        identifiers={("becker", "entry-1_1")},
+    )
+    stale = SimpleNamespace(
+        id="stale",
+        identifiers={("becker", "entry-1_2")},
+    )
+    root = SimpleNamespace(
+        id="root",
+        identifiers={("becker", "entry-1")},
+    )
+    foreign = SimpleNamespace(
+        id="foreign",
+        identifiers={("other", "entry-1_3")},
+    )
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        subentries={
+            "sub-1": SimpleNamespace(
+                subentry_type="cover",
+                data={"channel": "1"},
+            )
+        },
+    )
+
+    with (
+        patch("custom_components.becker.dr.async_get", return_value=registry),
+        patch(
+            "custom_components.becker.dr.async_entries_for_config_entry",
+            return_value=[root, current, stale, foreign],
+        ),
+    ):
+        _remove_stale_cover_devices(hass, entry)
+
+    registry.async_remove_device.assert_called_once_with("stale")
+
+
+def test_remove_stale_cover_devices_removes_all_deleted_covers() -> None:
+    hass = MagicMock()
+    registry = MagicMock()
+    stale = SimpleNamespace(
+        id="stale",
+        identifiers={("becker", "entry-1_4")},
+    )
+    entry = SimpleNamespace(entry_id="entry-1", subentries={})
+
+    with (
+        patch("custom_components.becker.dr.async_get", return_value=registry),
+        patch(
+            "custom_components.becker.dr.async_entries_for_config_entry",
+            return_value=[stale],
+        ),
+    ):
+        _remove_stale_cover_devices(hass, entry)
+
+    registry.async_remove_device.assert_called_once_with("stale")
+

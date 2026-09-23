@@ -1,0 +1,146 @@
+rules:
+
+# Bronze
+
+action-setup: done
+
+appropriate-polling:
+  status: exempt
+  comment: The integration is local push and does not poll the Becker stick.
+
+brands: done
+
+common-modules: done
+
+config-flow-test-coverage: done
+
+config-flow: done
+
+dependency-transparency:
+  status: todo
+  comment: |
+    Becker protocol support is currently maintained as a bundled pybecker fork.
+    A Home Assistant Core submission would require evaluating extraction to a
+    separately released, transparent dependency.
+
+docs-actions: done
+
+docs-conditions:
+  status: exempt
+  comment: The integration does not provide custom conditions.
+
+docs-high-level-description: done
+
+docs-installation-instructions: done
+
+docs-removal-instructions: done
+
+docs-triggers:
+  status: exempt
+  comment: The integration exposes an event entity but no custom trigger platform.
+
+entity-event-setup: done
+
+entity-unique-id: done
+
+has-entity-name: done
+
+runtime-data: done
+
+test-before-configure: done
+
+test-before-setup: done
+
+unique-config-entry: done
+
+# Silver
+
+action-exceptions: done
+
+config-entry-unloading: done
+
+docs-configuration-parameters: done
+
+docs-installation-parameters: done
+
+entity-unavailable: done
+
+integration-owner: done
+
+log-when-unavailable: done
+
+parallel-updates: done
+
+reauthentication-flow:
+  status: exempt
+  comment: The Becker Centronic stick has no authentication.
+
+test-coverage: done
+
+# Gold
+
+devices: done
+
+diagnostics: done
+
+discovery-update-info:
+  status: todo
+  comment: Revisit together with USB discovery support.
+
+discovery:
+  status: todo
+  comment: Evaluate USB discovery once the Centronic stick VID/PID descriptors are confirmed.
+
+docs-data-update: done
+
+docs-examples: done
+
+docs-known-limitations: done
+
+docs-supported-devices: done
+
+docs-supported-functions: done
+
+docs-troubleshooting: done
+
+docs-use-cases: done
+
+dynamic-devices:
+  status: exempt
+  comment: Covers are explicitly added and removed by the user as config subentries.
+
+entity-category: done
+
+entity-device-class: done
+
+entity-disabled-by-default:
+  status: exempt
+  comment: The integration does not expose noisy or niche entities that should default to disabled.
+
+entity-translations: done
+
+exception-translations: done
+
+icon-translations:
+  status: done
+  comment: Pair and remote entities use icons.json; cover and connectivity entities retain their Home Assistant device-class icons.
+
+reconfiguration-flow: done
+
+repair-issues: done
+
+stale-devices: done
+
+# Platinum
+
+async-dependency:
+  status: todo
+  comment: The bundled serial/RF library uses blocking I/O behind executor/thread boundaries.
+
+inject-websession:
+  status: exempt
+  comment: The integration communicates locally over serial or TCP and does not use HTTP.
+
+strict-typing:
+  status: todo
+  comment: Complete type annotations and add strict static type checking.

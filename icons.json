@@ -1,0 +1,14 @@
+{
+  "entity": {
+    "button": {
+      "pair": {
+        "default": "mdi:link"
+      }
+    },
+    "event": {
+      "remote": {
+        "default": "mdi:remote"
+      }
+    }
+  }
+}

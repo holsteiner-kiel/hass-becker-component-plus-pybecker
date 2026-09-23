@@ -5,9 +5,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 from custom_components.becker import _get_becker, async_setup
+from custom_components.becker.pybecker.becker_helper import BeckerConnectionError
 
 
 def _hass_with_entries(*entries):
@@ -35,15 +36,20 @@ def test_service_requires_selector_with_multiple_entries() -> None:
     first = SimpleNamespace(entry_id="entry-1", runtime_data=MagicMock())
     second = SimpleNamespace(entry_id="entry-2", runtime_data=MagicMock())
 
-    with pytest.raises(ServiceValidationError, match="specify entry_id"):
+    with pytest.raises(ServiceValidationError) as exc:
         _get_becker(_hass_with_entries(first, second))
+
+    assert exc.value.translation_key == "entry_id_required"
 
 
 def test_service_rejects_unknown_entry() -> None:
     entry = SimpleNamespace(entry_id="entry-1", runtime_data=MagicMock())
 
-    with pytest.raises(ServiceValidationError, match="is not loaded"):
+    with pytest.raises(ServiceValidationError) as exc:
         _get_becker(_hass_with_entries(entry), "missing")
+
+    assert exc.value.translation_key == "entry_not_loaded"
+    assert exc.value.translation_placeholders == {"entry_id": "missing"}
 
 
 
@@ -101,3 +107,27 @@ async def test_registered_log_units_service_reads_units() -> None:
     await handlers["log_units"](call)
 
     list_units.assert_awaited_once()
+
+@pytest.mark.asyncio
+async def test_registered_pair_service_translates_connection_failure() -> None:
+    """The legacy pair service exposes communicator failures cleanly."""
+    hass = MagicMock()
+    pair = AsyncMock(side_effect=BeckerConnectionError("offline"))
+    entry = SimpleNamespace(entry_id="entry-1", runtime_data=SimpleNamespace(pair=pair))
+    hass.config_entries.async_loaded_entries.return_value = [entry]
+    handlers = {}
+
+    def register(domain, service, handler, schema):
+        handlers[service] = handler
+
+    hass.services.async_register.side_effect = register
+    hass.http.register_view = MagicMock()
+    await async_setup(hass, {})
+
+    call = SimpleNamespace(data={"entry_id": "entry-1", "channel": 3, "unit": 2})
+    with pytest.raises(HomeAssistantError) as exc:
+        await handlers["pair"](call)
+
+    assert exc.value.translation_domain == "becker"
+    assert exc.value.translation_key == "communication_failed"
+

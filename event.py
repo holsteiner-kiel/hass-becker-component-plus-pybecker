@@ -10,6 +10,8 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from . import availability_signal_for_entry, signal_for_entry
 from .const import COMMANDS, DOMAIN
 
+PARALLEL_UPDATES = 0
+
 EVENT_TYPES = [
     "up",
     "up_intermediate",

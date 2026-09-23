@@ -9,7 +9,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_DEVICE, CONF_FILENAME
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady, ServiceValidationError
+from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady, HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.dispatcher import dispatcher_send
@@ -76,6 +76,28 @@ def _clear_setup_repairs(hass: HomeAssistant, entry: ConfigEntry) -> None:
     ir.async_delete_issue(
         hass, DOMAIN, _repair_issue_id(REPAIR_DATABASE, entry.entry_id)
     )
+
+
+def _remove_stale_cover_devices(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Remove Becker cover devices that no longer have a config subentry."""
+    device_registry = dr.async_get(hass)
+    expected_identifiers = {
+        (DOMAIN, f"{entry.entry_id}_{subentry.data[CONF_CHANNEL]}")
+        for subentry in entry.subentries.values()
+        if subentry.subentry_type == SUBENTRY_TYPE_COVER
+    }
+    root_identifier = (DOMAIN, entry.entry_id)
+
+    for device in dr.async_entries_for_config_entry(
+        device_registry, entry.entry_id
+    ):
+        becker_identifiers = {
+            identifier for identifier in device.identifiers if identifier[0] == DOMAIN
+        }
+        if root_identifier in becker_identifiers:
+            continue
+        if becker_identifiers and becker_identifiers.isdisjoint(expected_identifiers):
+            device_registry.async_remove_device(device.id)
 
 type BeckerConfigEntry = ConfigEntry[Becker]
 
@@ -172,19 +194,25 @@ def _get_becker(hass: HomeAssistant, entry_id: str | None = None) -> Becker:
     """Return the Becker instance selected for a service call."""
     entries = hass.config_entries.async_loaded_entries(DOMAIN)
     if not entries:
-        raise ServiceValidationError("No loaded Becker configuration entry found")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_loaded_entries",
+        )
 
     if entry_id is not None:
         for entry in entries:
             if entry.entry_id == entry_id:
                 return entry.runtime_data
         raise ServiceValidationError(
-            f"Becker configuration entry {entry_id} is not loaded"
+            translation_domain=DOMAIN,
+            translation_key="entry_not_loaded",
+            translation_placeholders={"entry_id": entry_id},
         )
 
     if len(entries) > 1:
         raise ServiceValidationError(
-            "Multiple Becker configuration entries are loaded; specify entry_id"
+            translation_domain=DOMAIN,
+            translation_key="entry_id_required",
         )
 
     return entries[0].runtime_data
@@ -197,9 +225,15 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         """Pair with a cover receiver."""
         channel = call.data[CONF_CHANNEL]
         unit = call.data.get(CONF_UNIT, 1)
-        await _get_becker(hass, call.data.get(CONF_ENTRY_ID)).pair(
-            f"{unit}:{channel}"
-        )
+        try:
+            await _get_becker(hass, call.data.get(CONF_ENTRY_ID)).pair(
+                f"{unit}:{channel}"
+            )
+        except BeckerConnectionError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="communication_failed",
+            ) from err
 
     async def handle_log_units(call: ServiceCall) -> None:
         """Log all paired units."""
@@ -286,6 +320,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: BeckerConfigEntry) -> bo
         name="Centronic stick",
         model="Centronic USB stick",
     )
+    _remove_stale_cover_devices(hass, entry)
 
     entry.async_on_unload(entry.add_update_listener(_update_listener))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

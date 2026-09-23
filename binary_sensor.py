@@ -11,6 +11,8 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from . import availability_signal_for_entry
 from .const import DOMAIN
 
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the Becker connection binary sensor."""
