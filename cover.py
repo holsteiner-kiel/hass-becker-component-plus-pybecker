@@ -33,7 +33,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.template import Template
 
-from . import signal_for_entry
+from . import availability_signal_for_entry, signal_for_entry
 from .const import (
     CLOSED_POSITION,
     COMMANDS,
@@ -109,16 +109,26 @@ async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the becker covers of a config entry."""
     becker = entry.runtime_data
     signal = signal_for_entry(entry.entry_id)
+    availability_signal = availability_signal_for_entry(entry.entry_id)
     for subentry_id, subentry in entry.subentries.items():
         if subentry.subentry_type != SUBENTRY_TYPE_COVER:
             continue
         async_add_entities(
-            [_create_entity(hass, becker, entry.entry_id, signal, subentry.data)],
+            [
+                _create_entity(
+                    hass,
+                    becker,
+                    entry.entry_id,
+                    signal,
+                    availability_signal,
+                    subentry.data,
+                )
+            ],
             config_subentry_id=subentry_id,
         )
 
 
-def _create_entity(hass, becker, entry_id, signal, config):
+def _create_entity(hass, becker, entry_id, signal, availability_signal, config):
     """Create a BeckerEntity from subentry data, normalizing the settings."""
     channel = config[CONF_CHANNEL]
     friendly_name = config.get(CONF_FRIENDLY_NAME) or f"Channel {channel}"
@@ -168,7 +178,7 @@ def _create_entity(hass, becker, entry_id, signal, config):
     tilt_time_blind = config.get(CONF_TILT_TIME_BLIND, TILT_TIME)
 
     return BeckerEntity(
-        becker, friendly_name, channel, entry_id, signal,
+        becker, friendly_name, channel, entry_id, signal, availability_signal,
         state_template, remote_id, travel_time_down, travel_time_up,
         intermediate_pos_up, intermediate_pos_down, intermediate_position,
         tilt_intermediate, tilt_blind, tilt_time_blind,
@@ -184,7 +194,7 @@ class BeckerEntity(CoverEntity, RestoreEntity):
     _attr_device_class = CoverDeviceClass.SHUTTER
 
     def __init__(
-        self, becker, name, channel, entry_id, signal,
+        self, becker, name, channel, entry_id, signal, availability_signal,
         state_template, remote_id, travel_time_down, travel_time_up,
         intermediate_pos_up, intermediate_pos_down, intermediate_position,
         tilt_intermediate, tilt_blind, tilt_time_blind,
@@ -193,6 +203,7 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         self._becker = becker
         self._name = name
         self._signal = signal
+        self._availability_signal = availability_signal
         self._attr = dict()
         self._channel = channel
         self._attr_unique_id = channel
@@ -269,6 +280,13 @@ class BeckerEntity(CoverEntity, RestoreEntity):
             self.hass, self._signal, self._async_message_received
         )
         self.async_on_remove(receive)
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                self._availability_signal,
+                self._handle_availability,
+            )
+        )
         # Setup callback on template changes
         if self._template is not None:
             info = async_track_template_result(
@@ -288,6 +306,10 @@ class BeckerEntity(CoverEntity, RestoreEntity):
     def available(self):
         """Return whether the Becker communicator is currently available."""
         return self._becker.communicator.is_available()
+
+    def _handle_availability(self) -> None:
+        """Refresh state after a communicator availability change."""
+        self.async_write_ha_state()
 
     @property
     def current_cover_position(self):
