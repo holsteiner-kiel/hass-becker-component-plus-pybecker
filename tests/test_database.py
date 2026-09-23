@@ -142,3 +142,45 @@ def test_set_unit_test_mode_rolls_back(tmp_path: Path) -> None:
 
     assert db.get_unit(1) == before
     db.close()
+
+
+
+def test_migrate_legacy_num_file(tmp_path: Path, monkeypatch) -> None:
+    legacy_dir = tmp_path / "legacy"
+    legacy_dir.mkdir()
+    legacy_file = legacy_dir / "centronic-stick.num"
+    legacy_file.write_text("37")
+
+    monkeypatch.setattr(
+        "custom_components.becker.pybecker.database.FILE_PATH",
+        str(legacy_dir),
+    )
+
+    db = Database(str(tmp_path / "migrate.db"))
+
+    assert db.get_unit(1) == ["1737b", 37, 1]
+    assert not legacy_file.exists()
+    db.close()
+
+
+def test_import_units_rolls_back_invalid_value(tmp_path: Path) -> None:
+    import pytest
+
+    db = Database(str(tmp_path / "invalid-import.db"))
+    before = db.export_units()
+
+    with pytest.raises((TypeError, ValueError)):
+        db.import_units(
+            [{"code": "1737b", "increment": "not-an-int", "configured": 1}]
+        )
+
+    assert db.export_units() == before
+    db.close()
+
+
+def test_get_unit_returns_none_for_unknown_row(tmp_path: Path) -> None:
+    db = Database(str(tmp_path / "missing-row.db"))
+
+    assert db.get_unit(999) is None
+
+    db.close()
