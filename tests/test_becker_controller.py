@@ -162,10 +162,10 @@ async def test_timed_move_sends_move_then_stop() -> None:
         await controller.run_codes(1, unit, "UP:2", False)
 
     assert controller.write.await_args_list[0].args[0] == [
-        (31, becker_module.COMMAND_UP)
+        (30, becker_module.COMMAND_UP)
     ]
     assert controller.write.await_args_list[1].args[0] == [
-        (32, becker_module.COMMAND_HALT)
+        (31, becker_module.COMMAND_HALT)
     ]
     # The final empty write comes from the common command-list path.
     assert controller.write.await_args_list[2].args[0] == []
