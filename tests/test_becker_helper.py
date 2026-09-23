@@ -401,3 +401,153 @@ def test_send_raises_after_all_queue_retries() -> None:
         communicator.send(b"packet")
 
     assert communicator._write_queue.put.call_count == 2
+
+
+
+def test_connection_properties_expose_transport_state() -> None:
+    connection = BeckerConnection.__new__(BeckerConnection)
+    transport = MagicMock()
+    transport.is_open = True
+    connection._device = "/dev/ttyUSB0"
+    connection._is_serial = True
+    connection._connection = transport
+
+    assert connection.device == "/dev/ttyUSB0"
+    assert connection.is_serial is True
+    assert connection.is_open is True
+
+
+def test_open_strict_wraps_transport_error() -> None:
+    connection = BeckerConnection.__new__(BeckerConnection)
+    connection._device = "/dev/ttyUSB0"
+    connection._is_serial = True
+    transport = MagicMock()
+    transport.is_open = False
+    transport.open.side_effect = OSError("offline")
+    connection._connection = transport
+
+    with pytest.raises(BeckerConnectionError, match="Could not open Becker connection"):
+        connection._open(strict=True)
+
+
+def test_validate_device_none_uses_default() -> None:
+    with patch(
+        "custom_components.becker.pybecker.becker_helper.os.path.exists",
+        return_value=True,
+    ):
+        normalized, serial_device = BeckerConnection._validate_device(None)
+
+    assert normalized.endswith("Centronic-if00")
+    assert serial_device is True
+
+
+def test_validate_existing_linux_serial_device() -> None:
+    with patch(
+        "custom_components.becker.pybecker.becker_helper.os.path.exists",
+        return_value=True,
+    ):
+        normalized, serial_device = BeckerConnection._validate_device("/dev/ttyUSB0")
+
+    assert normalized == "/dev/ttyUSB0"
+    assert serial_device is True
+
+
+def test_validate_windows_com_device() -> None:
+    port = SimpleNamespace(device="COM4")
+    with (
+        patch(
+            "custom_components.becker.pybecker.becker_helper.sys.platform",
+            "win32",
+        ),
+        patch(
+            "custom_components.becker.pybecker.becker_helper.serial.tools.list_ports.comports",
+            return_value=[port],
+        ),
+    ):
+        normalized, serial_device = BeckerConnection._validate_device("com4")
+
+    assert normalized == "com4"
+    assert serial_device is True
+
+
+def test_validate_missing_windows_com_device_raises() -> None:
+    with (
+        patch(
+            "custom_components.becker.pybecker.becker_helper.sys.platform",
+            "win32",
+        ),
+        patch(
+            "custom_components.becker.pybecker.becker_helper.serial.tools.list_ports.comports",
+            return_value=[],
+        ),
+    ):
+        with pytest.raises(BeckerConnectionError, match="not existing"):
+            BeckerConnection._validate_device("COM9")
+
+
+def test_validate_non_socket_path_is_left_unchanged() -> None:
+    normalized, serial_device = BeckerConnection._validate_device("relative/path")
+
+    assert normalized == "relative/path"
+    assert serial_device is False
+
+
+def test_maybe_rebuild_tolerates_close_failure() -> None:
+    connection = BeckerConnection.__new__(BeckerConnection)
+    connection._device = "/dev/ttyUSB0"
+    connection._is_serial = True
+    connection._last_rebuild_attempt = 0.0
+    old_transport = MagicMock()
+    old_transport.close.side_effect = OSError("already gone")
+    new_transport = MagicMock()
+    connection._connection = old_transport
+    connection._build_serial = MagicMock(return_value=new_transport)
+
+    with patch(
+        "custom_components.becker.pybecker.becker_helper.time.time",
+        return_value=100.0,
+    ):
+        connection._maybe_rebuild()
+
+    assert connection._connection is new_transport
+
+
+def test_availability_callback_only_fires_on_transition() -> None:
+    communicator = _communicator()
+    callback = MagicMock()
+    communicator._availability_callback = callback
+    communicator.is_available = MagicMock(side_effect=[True, True, False, False, True])
+
+    communicator._notify_availability_if_changed()
+    communicator._notify_availability_if_changed()
+    communicator._notify_availability_if_changed()
+    communicator._notify_availability_if_changed()
+    communicator._notify_availability_if_changed()
+
+    assert callback.call_count == 3
+    assert communicator._last_available is True
+
+
+def test_diagnostics_reports_network_transport_and_stopping() -> None:
+    communicator = _communicator()
+    communicator._connection.is_serial = False
+    communicator._stop_flag.set()
+
+    diagnostics = communicator.diagnostics()
+
+    assert diagnostics["transport"] == "network"
+    assert diagnostics["stopping"] is True
+
+
+def test_log_ignores_non_message_packet(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    communicator = _communicator()
+    caplog.set_level(
+        logging.DEBUG,
+        logger="custom_components.becker.pybecker.becker_helper",
+    )
+
+    communicator._log(b"not-a-packet", "RX: ")
+
+    assert "unit_id:" not in caplog.text
