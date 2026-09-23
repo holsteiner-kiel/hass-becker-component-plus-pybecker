@@ -247,5 +247,16 @@
       "title": "Ungültiger Becker-Datenbankpfad",
       "description": "Der für {entry_title} konfigurierte Datenbankpfad ist ungültig. Nutze „Neu konfigurieren“ in der Integrationsansicht und wähle einen vorhandenen Ordner bzw. den Standarddateinamen."
     }
+  },
+  "exceptions": {
+    "no_loaded_entries": {
+      "message": "Es ist kein geladener Becker-Konfigurationseintrag vorhanden."
+    },
+    "entry_not_loaded": {
+      "message": "Der Becker-Konfigurationseintrag {entry_id} ist nicht geladen."
+    },
+    "entry_id_required": {
+      "message": "Mehrere Becker-Konfigurationseinträge sind geladen. Gib einen Eintrag an."
+    }
   }
 }
