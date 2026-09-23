@@ -59,7 +59,7 @@ class BeckerPairButton(ButtonEntity):
 
     def _handle_availability(self) -> None:
         """Refresh state after a communicator availability change."""
-        self.async_write_ha_state()
+        self.schedule_update_ha_state()
 
     @property
     def available(self):
