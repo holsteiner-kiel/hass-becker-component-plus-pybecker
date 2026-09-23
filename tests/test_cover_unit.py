@@ -548,7 +548,7 @@ async def test_remote_release_stops_tilt_blind_during_tilt_window() -> None:
     entity._travel_stop.assert_called_once()
 
 
-async def test_remote_intermediate_is_ignored_when_disabled() -> None:
+async def test_remote_intermediate_falls_back_to_open_when_disabled() -> None:
     entity = _entity(
         intermediate_position=False,
         remote_id="1737B:1",
@@ -559,7 +559,7 @@ async def test_remote_intermediate_is_ignored_when_disabled() -> None:
         _packet(command=b"2", argument=b"4")
     )
 
-    entity._travel_to_position.assert_not_called()
+    entity._travel_to_position.assert_called_once_with(OPEN_POSITION)
 
 
 async def test_template_invalid_result_keeps_current_position() -> None:
