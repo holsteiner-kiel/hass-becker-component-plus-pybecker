@@ -3,7 +3,7 @@
 <p align="center"><img src="brand/logo.png" alt="Becker for Home Assistant" width="512"></p>
 
 [![CI](https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker/actions/workflows/ci.yml/badge.svg)](https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker/actions/workflows/ci.yml)
-![Version](https://img.shields.io/badge/version-0.5.0-blue)
+![Version](https://img.shields.io/badge/version-0.6.1-blue)
 
 A maintained Home Assistant integration for controlling **Becker Centronic RF covers** with a Becker Centronic USB stick.
 
@@ -23,6 +23,8 @@ Supported Centronic USB stick order numbers include **4035 200 041 0** and **403
 - Serialized database access and RF command handling
 - Configurable RF queue/retry behavior
 - Automated regression tests against current Home Assistant releases
+- Native diagnostics, repair issues and UI reconfiguration
+- Diagnostic connectivity sensor with live availability updates
 
 > **Important:** Becker uses rolling codes. Keep a current backup of the integration state before migrating Home Assistant or restoring a database. The integration rejects imports that would move known rolling-code state backwards.
 
