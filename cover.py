@@ -21,7 +21,7 @@ from homeassistant.const import (
     CONF_FRIENDLY_NAME,
     CONF_VALUE_TEMPLATE,
 )
-from homeassistant.exceptions import TemplateError
+from homeassistant.exceptions import HomeAssistantError, TemplateError
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.device_registry import DeviceInfo, async_get_device_id_by_identifier
 from homeassistant.helpers.event import (
@@ -63,6 +63,7 @@ from .const import (
     TILT_TIME,
     VENTILATION_POSITION,
 )
+from .pybecker.becker_helper import BeckerConnectionError
 from .travelcalculator import TravelCalculator
 
 _LOGGER = logging.getLogger(__name__)
@@ -317,6 +318,17 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         """Return whether the Becker communicator is currently available."""
         return self._becker.communicator.is_available()
 
+    async def _async_becker_action(self, action, *args) -> None:
+        """Run a Becker command and expose communication failures to Home Assistant."""
+        try:
+            await action(*args)
+        except BeckerConnectionError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="communication_failed",
+            ) from err
+
+
     def _handle_availability(self) -> None:
         """Refresh state after a communicator availability change."""
         self.schedule_update_ha_state()
@@ -356,7 +368,7 @@ class BeckerEntity(CoverEntity, RestoreEntity):
 
     async def async_open_cover(self, **kwargs):
         """Set the cover to the open position."""
-        await self._becker.move_up(self._channel)
+        await self._async_becker_action(self._becker.move_up, self._channel)
         self._travel_to_position(OPEN_POSITION)
 
     async def async_open_cover_tilt(self, **kwargs):
@@ -366,12 +378,12 @@ class BeckerEntity(CoverEntity, RestoreEntity):
             await self.async_open_cover()
             self._update_scheduled_stop_travel_callback(self._tilt_time_blind)
         if self._tilt_intermediate:
-            await self._becker.move_up_intermediate(self._channel)
+            await self._async_becker_action(self._becker.move_up_intermediate, self._channel)
             self._travel_to_position(self._intermediate_pos_up)
 
     async def async_close_cover(self, **kwargs):
         """Set the cover to the closed position."""
-        await self._becker.move_down(self._channel)
+        await self._async_becker_action(self._becker.move_down, self._channel)
         self._travel_to_position(CLOSED_POSITION)
 
     async def async_close_cover_tilt(self, **kwargs):
@@ -381,12 +393,12 @@ class BeckerEntity(CoverEntity, RestoreEntity):
             await self.async_close_cover()
             self._update_scheduled_stop_travel_callback(self._tilt_time_blind)
         if self._tilt_intermediate:
-            await self._becker.move_down_intermediate(self._channel)
+            await self._async_becker_action(self._becker.move_down_intermediate, self._channel)
             self._travel_to_position(self._intermediate_pos_down)
 
     async def async_stop_cover(self, **kwargs):
         """Set the cover to the stopped position."""
-        await self._becker.stop(self._channel)
+        await self._async_becker_action(self._becker.stop, self._channel)
         self._travel_stop()
 
     async def async_set_cover_position(self, **kwargs):
@@ -402,9 +414,9 @@ class BeckerEntity(CoverEntity, RestoreEntity):
             # simulated travel state after the RF command was successfully
             # accepted by the Becker communicator.
             if pos < current_pos:
-                await self._becker.move_down(self._channel)
+                await self._async_becker_action(self._becker.move_down, self._channel)
             else:
-                await self._becker.move_up(self._channel)
+                await self._async_becker_action(self._becker.move_up, self._channel)
 
             travel_time = self._travel_to_position(pos)
             if 0 < pos < 100:
@@ -501,7 +513,7 @@ class BeckerEntity(CoverEntity, RestoreEntity):
     async def _async_stop_travel(self, _):
         """Stop the cover callack."""
         self._travel_stop()
-        await self._becker.stop(self._channel)
+        await self._async_becker_action(self._becker.stop, self._channel)
 
     async def _async_update_ha_state(self, _):
         """Update HA-State while travelling.
