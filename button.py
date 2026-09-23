@@ -9,6 +9,8 @@ from . import availability_signal_for_entry
 
 from .const import CONF_CHANNEL, DOMAIN, MANUFACTURER, SUBENTRY_TYPE_COVER
 
+PARALLEL_UPDATES = 1
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up a pair button for each configured cover."""
