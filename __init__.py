@@ -9,7 +9,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_DEVICE, CONF_FILENAME
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady, ServiceValidationError
+from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady, HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.dispatcher import dispatcher_send
@@ -225,9 +225,15 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         """Pair with a cover receiver."""
         channel = call.data[CONF_CHANNEL]
         unit = call.data.get(CONF_UNIT, 1)
-        await _get_becker(hass, call.data.get(CONF_ENTRY_ID)).pair(
-            f"{unit}:{channel}"
-        )
+        try:
+            await _get_becker(hass, call.data.get(CONF_ENTRY_ID)).pair(
+                f"{unit}:{channel}"
+            )
+        except BeckerConnectionError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="communication_failed",
+            ) from err
 
     async def handle_log_units(call: ServiceCall) -> None:
         """Log all paired units."""
