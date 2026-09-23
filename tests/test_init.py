@@ -18,6 +18,8 @@ from custom_components.becker import (
     _packet_callback,
     _repair_issue_id,
     _resolve_db_path,
+    _update_listener,
+    async_unload_entry,
     availability_signal_for_entry,
     signal_for_entry,
 )
@@ -155,3 +157,76 @@ def test_resolve_db_path_moves_legacy_file(tmp_path: Path) -> None:
     assert result == str(config / "centronic-stick.db")
     assert (config / "centronic-stick.db").read_bytes() == b"db"
     assert not source.exists()
+
+
+
+def test_get_becker_returns_matching_entry() -> None:
+    first = SimpleNamespace(entry_id="one", runtime_data=object())
+    second = SimpleNamespace(entry_id="two", runtime_data=object())
+    hass = MagicMock()
+    hass.config_entries.async_loaded_entries.return_value = [first, second]
+
+    assert _get_becker(hass, "two") is second.runtime_data
+
+
+def test_get_becker_rejects_unknown_entry_id() -> None:
+    entry = SimpleNamespace(entry_id="one", runtime_data=object())
+    hass = MagicMock()
+    hass.config_entries.async_loaded_entries.return_value = [entry]
+
+    with pytest.raises(ServiceValidationError, match="is not loaded"):
+        _get_becker(hass, "missing")
+
+
+def test_get_becker_requires_entry_id_when_multiple_loaded() -> None:
+    entries = [
+        SimpleNamespace(entry_id="one", runtime_data=object()),
+        SimpleNamespace(entry_id="two", runtime_data=object()),
+    ]
+    hass = MagicMock()
+    hass.config_entries.async_loaded_entries.return_value = entries
+
+    with pytest.raises(ServiceValidationError, match="Multiple Becker"):
+        _get_becker(hass)
+
+
+def test_get_becker_returns_only_loaded_entry() -> None:
+    runtime = object()
+    entry = SimpleNamespace(entry_id="one", runtime_data=runtime)
+    hass = MagicMock()
+    hass.config_entries.async_loaded_entries.return_value = [entry]
+
+    assert _get_becker(hass) is runtime
+
+
+async def test_async_unload_entry_closes_runtime_after_success() -> None:
+    runtime = MagicMock()
+    entry = SimpleNamespace(runtime_data=runtime)
+    hass = MagicMock()
+    hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
+    hass.async_add_executor_job = AsyncMock()
+
+    assert await async_unload_entry(hass, entry) is True
+
+    hass.async_add_executor_job.assert_awaited_once_with(runtime.close)
+
+
+async def test_async_unload_entry_keeps_runtime_when_unload_fails() -> None:
+    runtime = MagicMock()
+    entry = SimpleNamespace(runtime_data=runtime)
+    hass = MagicMock()
+    hass.config_entries.async_unload_platforms = AsyncMock(return_value=False)
+    hass.async_add_executor_job = AsyncMock()
+
+    assert await async_unload_entry(hass, entry) is False
+
+    hass.async_add_executor_job.assert_not_awaited()
+
+
+async def test_update_listener_schedules_reload() -> None:
+    hass = MagicMock()
+    entry = SimpleNamespace(entry_id="entry-1")
+
+    await _update_listener(hass, entry)
+
+    hass.config_entries.async_schedule_reload.assert_called_once_with("entry-1")
