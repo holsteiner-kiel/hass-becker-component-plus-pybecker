@@ -122,8 +122,8 @@ entity-translations: done
 exception-translations: done
 
 icon-translations:
-  status: todo
-  comment: Review whether translated state/entity icons are appropriate for any Becker entities.
+  status: done
+  comment: Pair and remote entities use icons.json; cover and connectivity entities retain their Home Assistant device-class icons.
 
 reconfiguration-flow: done
 
