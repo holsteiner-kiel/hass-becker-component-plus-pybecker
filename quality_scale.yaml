@@ -35,9 +35,7 @@ docs-high-level-description: done
 
 docs-installation-instructions: done
 
-docs-removal-instructions:
-  status: todo
-  comment: Add explicit removal/uninstall instructions to the README.
+docs-removal-instructions: done
 
 docs-triggers:
   status: exempt
@@ -101,29 +99,19 @@ discovery:
   status: todo
   comment: Evaluate USB discovery once the Centronic stick VID/PID descriptors are confirmed.
 
-docs-data-update:
-  status: todo
-  comment: Document push updates, travel-time position estimation and remote RF updates explicitly.
+docs-data-update: done
 
-docs-examples:
-  status: todo
-  comment: Add current UI/event-entity automation examples.
+docs-examples: done
 
-docs-known-limitations:
-  status: todo
-  comment: Add a dedicated known-limitations section.
+docs-known-limitations: done
 
-docs-supported-devices:
-  status: todo
-  comment: Expand the supported/unsupported hardware section.
+docs-supported-devices: done
 
 docs-supported-functions: done
 
 docs-troubleshooting: done
 
-docs-use-cases:
-  status: todo
-  comment: Add end-user use cases based on the UI configuration workflow.
+docs-use-cases: done
 
 dynamic-devices:
   status: exempt
