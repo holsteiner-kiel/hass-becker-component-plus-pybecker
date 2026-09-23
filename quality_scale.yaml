@@ -123,9 +123,7 @@ entity-disabled-by-default:
 
 entity-translations: done
 
-exception-translations:
-  status: todo
-  comment: Review runtime and action errors for translation-key based exceptions.
+exception-translations: done
 
 icon-translations:
   status: todo
@@ -135,9 +133,7 @@ reconfiguration-flow: done
 
 repair-issues: done
 
-stale-devices:
-  status: todo
-  comment: Verify device-registry cleanup when cover subentries are removed.
+stale-devices: done
 
 # Platinum
 
