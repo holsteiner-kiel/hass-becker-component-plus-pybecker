@@ -23,7 +23,7 @@ from homeassistant.const import (
 )
 from homeassistant.exceptions import TemplateError
 import homeassistant.helpers.config_validation as cv
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceInfo, async_get_device_id_by_identifier
 from homeassistant.helpers.event import (
     TrackTemplate,
     async_call_later,
@@ -179,11 +179,17 @@ def _create_entity(hass, becker, entry_id, signal, availability_signal, config):
         tilt_intermediate = False
     tilt_time_blind = config.get(CONF_TILT_TIME_BLIND, TILT_TIME)
 
+    parent_device_id = async_get_device_id_by_identifier(
+        hass,
+        (DOMAIN, entry_id),
+        config_entry_id=entry_id,
+    )
+
     return BeckerEntity(
         becker, friendly_name, channel, entry_id, signal, availability_signal,
         state_template, remote_id, travel_time_down, travel_time_up,
         intermediate_pos_up, intermediate_pos_down, intermediate_position,
-        tilt_intermediate, tilt_blind, tilt_time_blind,
+        tilt_intermediate, tilt_blind, tilt_time_blind, parent_device_id,
     )
 
 
@@ -199,7 +205,7 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         self, becker, name, channel, entry_id, signal, availability_signal,
         state_template, remote_id, travel_time_down, travel_time_up,
         intermediate_pos_up, intermediate_pos_down, intermediate_position,
-        tilt_intermediate, tilt_blind, tilt_time_blind,
+        tilt_intermediate, tilt_blind, tilt_time_blind, parent_device_id=None,
     ):
         """Init the Becker entity."""
         self._becker = becker
@@ -209,12 +215,14 @@ class BeckerEntity(CoverEntity, RestoreEntity):
         self._attr = dict()
         self._channel = channel
         self._attr_unique_id = channel
-        self._attr_device_info = DeviceInfo(
+        device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry_id}_{channel}")},
             name=name,
             manufacturer=MANUFACTURER,
-            via_device=(DOMAIN, entry_id),
         )
+        if parent_device_id is not None:
+            device_info["via_device_id"] = parent_device_id
+        self._attr_device_info = device_info
         self._attr[CONF_CHANNEL] = str(channel)
         self._cover_features = COVER_FEATURES
         # Template
