@@ -3,7 +3,7 @@
 <p align="center"><img src="brand/logo.png" alt="Becker for Home Assistant" width="512"></p>
 
 [![CI](https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker/actions/workflows/ci.yml/badge.svg)](https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker/actions/workflows/ci.yml)
-![Version](https://img.shields.io/badge/version-0.7.0-blue)
+![Version](https://img.shields.io/badge/version-0.7.1-blue)
 
 A maintained Home Assistant integration for controlling **Becker Centronic RF covers** with a Becker Centronic USB stick.
 
