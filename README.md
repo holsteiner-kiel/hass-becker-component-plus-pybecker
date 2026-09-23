@@ -30,6 +30,8 @@ Supported Centronic USB stick order numbers include **4035 200 041 0** and **403
 
 The project builds on the original work by [ole](https://github.com/ole1986), [Nicolas Berthel](https://github.com/nicolasberthel) and later contributors.
 
+The bundled `pybecker/` code is based on Nicolas Berthel's **pybecker 1.1.0** and is maintained as an embedded fork for this Home Assistant integration. The original Centronic RF frame generation and rolling-code format are retained, while this fork adds Home Assistant-specific reliability improvements such as asynchronous command handling, serialized database access, reconnect and retry behavior, runtime availability reporting, diagnostics, and safe state import/export.
+
 # Installation
 
 1. Add [this](https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker) repository to HACS custom
