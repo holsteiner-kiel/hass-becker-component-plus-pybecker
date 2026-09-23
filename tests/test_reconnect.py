@@ -9,6 +9,8 @@ from custom_components.becker.pybecker.becker_helper import BeckerCommunicator
 
 class _FlakyConnection:
     def __init__(self) -> None:
+        self.is_open = True
+        self.is_serial = True
         self.read_calls = 0
         self.write_calls = 0
         self.written = []
