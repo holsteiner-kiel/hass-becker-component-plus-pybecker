@@ -62,8 +62,11 @@ def test_get_becker_rejects_no_loaded_entries() -> None:
     hass = MagicMock()
     hass.config_entries.async_loaded_entries.return_value = []
 
-    with pytest.raises(ServiceValidationError, match="No loaded Becker"):
+    with pytest.raises(ServiceValidationError) as exc:
         _get_becker(hass)
+
+    assert exc.value.translation_domain == "becker"
+    assert exc.value.translation_key == "no_loaded_entries"
 
 
 def test_availability_callback_marshals_to_loop() -> None:
@@ -177,8 +180,11 @@ def test_get_becker_rejects_unknown_entry_id() -> None:
     hass = MagicMock()
     hass.config_entries.async_loaded_entries.return_value = [entry]
 
-    with pytest.raises(ServiceValidationError, match="is not loaded"):
+    with pytest.raises(ServiceValidationError) as exc:
         _get_becker(hass, "missing")
+
+    assert exc.value.translation_key == "entry_not_loaded"
+    assert exc.value.translation_placeholders == {"entry_id": "missing"}
 
 
 def test_get_becker_requires_entry_id_when_multiple_loaded() -> None:
@@ -189,8 +195,10 @@ def test_get_becker_requires_entry_id_when_multiple_loaded() -> None:
     hass = MagicMock()
     hass.config_entries.async_loaded_entries.return_value = entries
 
-    with pytest.raises(ServiceValidationError, match="Multiple Becker"):
+    with pytest.raises(ServiceValidationError) as exc:
         _get_becker(hass)
+
+    assert exc.value.translation_key == "entry_id_required"
 
 
 def test_get_becker_returns_only_loaded_entry() -> None:
