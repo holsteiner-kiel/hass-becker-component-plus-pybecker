@@ -172,19 +172,25 @@ def _get_becker(hass: HomeAssistant, entry_id: str | None = None) -> Becker:
     """Return the Becker instance selected for a service call."""
     entries = hass.config_entries.async_loaded_entries(DOMAIN)
     if not entries:
-        raise ServiceValidationError("No loaded Becker configuration entry found")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_loaded_entries",
+        )
 
     if entry_id is not None:
         for entry in entries:
             if entry.entry_id == entry_id:
                 return entry.runtime_data
         raise ServiceValidationError(
-            f"Becker configuration entry {entry_id} is not loaded"
+            translation_domain=DOMAIN,
+            translation_key="entry_not_loaded",
+            translation_placeholders={"entry_id": entry_id},
         )
 
     if len(entries) > 1:
         raise ServiceValidationError(
-            "Multiple Becker configuration entries are loaded; specify entry_id"
+            translation_domain=DOMAIN,
+            translation_key="entry_id_required",
         )
 
     return entries[0].runtime_data
