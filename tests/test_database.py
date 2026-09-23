@@ -184,3 +184,55 @@ def test_get_unit_returns_none_for_unknown_row(tmp_path: Path) -> None:
     assert db.get_unit(999) is None
 
     db.close()
+
+
+
+def test_migrate_rolls_back_on_os_error(tmp_path: Path, monkeypatch) -> None:
+    db = Database(str(tmp_path / "migrate-error.db"))
+    monkeypatch.setattr(
+        "custom_components.becker.pybecker.database.os.path.isfile",
+        lambda path: True,
+    )
+    monkeypatch.setattr(
+        "builtins.open",
+        MagicMock(side_effect=OSError("broken legacy file")),
+    )
+    rollback = MagicMock(wraps=db.conn.rollback)
+    monkeypatch.setattr(db.conn, "rollback", rollback, raising=False)
+
+    db.migrate()
+
+    db.close()
+
+
+def test_init_dummy_rolls_back_on_database_error(tmp_path: Path, monkeypatch) -> None:
+    db = Database(str(tmp_path / "dummy-error.db"))
+    cursor = MagicMock()
+    cursor.execute.side_effect = __import__("sqlite3").OperationalError("boom")
+    monkeypatch.setattr(db.conn, "cursor", lambda: cursor, raising=False)
+
+    db.init_dummy()
+
+    db.close()
+
+
+def test_output_handles_never_and_previously_executed_units(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    import logging
+    import sqlite3
+
+    db = Database(str(tmp_path / "output.db"))
+    db.set_unit(["1737b", 10, 1])
+    db.conn.execute(
+        "UPDATE unit SET executed = ? WHERE code = ?",
+        (1234567890, "1737b"),
+    )
+    db.conn.commit()
+    caplog.set_level(logging.INFO)
+
+    db.output()
+
+    assert "1737b" in caplog.text
+    assert "(unknown)" in caplog.text
+    db.close()
