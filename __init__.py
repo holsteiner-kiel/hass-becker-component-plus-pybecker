@@ -99,6 +99,11 @@ def signal_for_entry(entry_id: str) -> str:
     return f"{DOMAIN}_{RECEIVE_MESSAGE}_{entry_id}"
 
 
+def availability_signal_for_entry(entry_id: str) -> str:
+    """Return the dispatcher signal for communicator availability changes."""
+    return f"{DOMAIN}_availability_{entry_id}"
+
+
 def _resolve_db_path(config_dir: str, filename: str | None) -> str:
     """Resolve the sqlite database path (blocking, run in executor)."""
     if filename is None:
@@ -126,6 +131,15 @@ def _resolve_db_path(config_dir: str, filename: str | None) -> str:
         )
     _LOGGER.warning("Database file %s does not exist. Creating a new file", filename)
     return filename
+
+
+def _availability_callback(hass: HomeAssistant, entry_id: str) -> None:
+    """Forward communicator availability changes safely onto the HA event loop."""
+    hass.loop.call_soon_threadsafe(
+        dispatcher_send,
+        hass,
+        availability_signal_for_entry(entry_id),
+    )
 
 
 def _packet_callback(hass: HomeAssistant, entry_id: str, packet) -> None:
@@ -222,6 +236,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: BeckerConfigEntry) -> bo
                 init_dummy=False,
                 db_filename=filename,
                 callback=partial(_packet_callback, hass, entry.entry_id),
+                availability_callback=partial(
+                    _availability_callback,
+                    hass,
+                    entry.entry_id,
+                ),
                 queue_size=entry.options.get(CONF_QUEUE_SIZE, DEFAULT_QUEUE_SIZE),
                 retry_max=entry.options.get(
                     CONF_COMMAND_RETRY_MAX, DEFAULT_COMMAND_RETRY_MAX

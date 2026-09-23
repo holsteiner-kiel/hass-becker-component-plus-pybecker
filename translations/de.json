@@ -231,6 +231,11 @@
           }
         }
       }
+    },
+    "binary_sensor": {
+      "connection": {
+        "name": "Verbindung"
+      }
     }
   },
   "issues": {

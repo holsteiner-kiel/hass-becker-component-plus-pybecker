@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.1
+
+A connectivity visibility and availability refresh release.
+
+- Add a diagnostic connectivity binary sensor on the Centronic stick device
+- Update the connectivity sensor immediately when the communicator goes offline or recovers
+- Refresh cover, pair-button and remote-event availability immediately on connection changes
+- Log one warning when the Becker connection becomes unavailable and one info message when it is restored
+- Keep repeated low-level reconnect attempts at debug level to avoid warning-log spam
+- Keep queue, retry and RF packet details in diagnostics instead of adding noisy entities
+
 ## 0.6.0
 
 A Home Assistant UX and resilience milestone.

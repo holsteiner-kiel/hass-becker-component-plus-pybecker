@@ -3,6 +3,9 @@
 from homeassistant.components.button import ButtonEntity
 from homeassistant.const import CONF_FRIENDLY_NAME, EntityCategory
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
+
+from . import availability_signal_for_entry
 
 from .const import CONF_CHANNEL, DOMAIN, MANUFACTURER, SUBENTRY_TYPE_COVER
 
@@ -31,6 +34,7 @@ class BeckerPairButton(ButtonEntity):
     def __init__(self, becker, entry_id, channel, name):
         """Init the pair button."""
         self._becker = becker
+        self._entry_id = entry_id
         self._channel = channel
         self._attr_unique_id = f"{channel}_pair"
         # Share the cover's device so the button shows up on the cover. The
@@ -42,6 +46,20 @@ class BeckerPairButton(ButtonEntity):
             manufacturer=MANUFACTURER,
             via_device=(DOMAIN, entry_id),
         )
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to communicator availability changes."""
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                availability_signal_for_entry(self._entry_id),
+                self._handle_availability,
+            )
+        )
+
+    def _handle_availability(self) -> None:
+        """Refresh state after a communicator availability change."""
+        self.schedule_update_ha_state()
 
     @property
     def available(self):
