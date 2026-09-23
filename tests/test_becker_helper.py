@@ -551,3 +551,41 @@ def test_log_ignores_non_message_packet(
     communicator._log(b"not-a-packet", "RX: ")
 
     assert "unit_id:" not in caplog.text
+
+
+
+def test_communicator_constructor_initializes_runtime_state() -> None:
+    connection = MagicMock()
+
+    with (
+        patch(
+            "custom_components.becker.pybecker.becker_helper.BeckerConnection",
+            return_value=connection,
+        ) as connection_cls,
+        patch(
+            "custom_components.becker.pybecker.becker_helper.time.time",
+            return_value=123.5,
+        ),
+    ):
+        communicator = BeckerCommunicator(
+            "/dev/ttyUSB0",
+            callback=MagicMock(),
+            availability_callback=MagicMock(),
+            deamon=True,
+            queue_size=7,
+            retry_max=4,
+            retry_delay=0.25,
+        )
+
+    connection_cls.assert_called_once_with(device="/dev/ttyUSB0")
+    assert communicator.daemon is True
+    assert communicator._queue_size == 7
+    assert communicator._retry_max == 4
+    assert communicator._retry_delay == 0.25
+    assert communicator._write_queue.maxsize == 7
+    assert communicator._connection is connection
+    assert communicator._read_buffer == b""
+    assert communicator._timeout == 123.5
+    assert communicator._stop_flag.is_set() is False
+    assert communicator._force_stop_flag.is_set() is False
+    assert communicator._last_available is None
