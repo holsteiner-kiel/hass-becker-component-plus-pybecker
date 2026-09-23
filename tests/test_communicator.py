@@ -1,8 +1,10 @@
 """Tests for Becker communicator queue behavior."""
 
 import queue
+import logging
 import threading
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -20,6 +22,9 @@ def _communicator_with_queue(maxsize: int, retries: int = 0) -> BeckerCommunicat
     communicator._retry_delay = 0.01
     communicator._write_queue = queue.Queue(maxsize=maxsize)
     communicator._stop_flag = threading.Event()
+    communicator._force_stop_flag = threading.Event()
+    communicator._availability_callback = None
+    communicator._last_available = None
     communicator.is_alive = lambda: True
     return communicator
 
@@ -82,3 +87,35 @@ def test_availability_requires_thread_open_connection_and_active_state() -> None
     communicator._connection.is_open = True
     communicator._stop_flag.set()
     assert communicator.is_available() is False
+
+
+
+def test_availability_transition_callback_and_logs_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    communicator = _communicator_with_queue(10)
+    communicator._connection = SimpleNamespace(is_open=True)
+    callback = MagicMock()
+    communicator._availability_callback = callback
+
+    caplog.set_level(
+        logging.INFO,
+        logger="custom_components.becker.pybecker.becker_helper",
+    )
+
+    communicator._notify_availability_if_changed()
+    communicator._notify_availability_if_changed()
+    assert callback.call_count == 1
+
+    communicator._connection.is_open = False
+    communicator._notify_availability_if_changed()
+    communicator._notify_availability_if_changed()
+
+    communicator._connection.is_open = True
+    communicator._notify_availability_if_changed()
+    communicator._notify_availability_if_changed()
+
+    assert callback.call_count == 3
+    messages = [record.getMessage() for record in caplog.records]
+    assert messages.count("Becker connection unavailable") == 1
+    assert messages.count("Becker connection restored") == 1
