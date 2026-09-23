@@ -33,26 +33,6 @@ The project builds on the original work by [ole](https://github.com/ole1986), [N
 The bundled `pybecker/` code is based on Nicolas Berthel's **pybecker 1.1.0** and is maintained as an embedded fork for this Home Assistant integration. The original Centronic RF frame generation and rolling-code format are retained, while this fork adds Home Assistant-specific reliability improvements such as asynchronous command handling, serialized database access, reconnect and retry behavior, runtime availability reporting, diagnostics, and safe state import/export.
 
 
-## Support this project
-
-If this integration makes your smart home a little better and you'd like to support its continued development, testing, maintenance and documentation, you can buy me a coffee on Ko-fi.
-
-[![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/holsteiner)
-
-Your support is completely optional — the integration remains free and open source. Every coffee is greatly appreciated and helps me spend more time improving this and other Home Assistant projects. Thank you! ❤️
-
-# Installation
-
-1. Add [this](https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker) repository to HACS custom
-   repositories (preferred).  
-   Alternatively copy the files of this [this](https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker)
-   repository into the custom_components folder of your HA configuration directory.  
-2. Plug the Becker USB stick into any free USB port. It is a good practice to add a short USB extension cable
-   and place the Becker USB stick away from other RF sources.  
-3. Add the Becker integration to your configuration.  
-4. Reboot Home Assistant
-
-# Configuration
 ## Configuration via the UI (recommended)
 Since version 0.4.0 the integration is set up in the Home Assistant UI:
 
