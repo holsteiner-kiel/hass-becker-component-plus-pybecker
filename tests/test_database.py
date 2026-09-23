@@ -25,6 +25,7 @@ def test_connection_usable_across_threads(tmp_path: Path) -> None:
     # Access from a different (here: the main) thread must not raise.
     assert database.get_all_units() == []
     assert database.get_unit(1) == ["1737b", 0, 0]
+    database.close()
 
 
 def test_export_units_returns_all_rows(tmp_path: Path) -> None:
