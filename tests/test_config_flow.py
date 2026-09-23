@@ -1,5 +1,7 @@
 """Tests for the becker config flow."""
 
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -26,7 +28,14 @@ from custom_components.becker.const import (
     DOMAIN,
     SUBENTRY_TYPE_COVER,
 )
-from custom_components.becker.config_flow import _import_cover_data, _test_connection, _validate_cover_input
+from custom_components.becker.config_flow import (
+    CoverSubentryFlowHandler,
+    _import_cover_data,
+    _swap_db,
+    _swap_live_db,
+    _test_connection,
+    _validate_cover_input,
+)
 from custom_components.becker.pybecker.becker_helper import BeckerConnectionError
 
 TEST_DEVICE = "/dev/ttyUSB0"
@@ -621,3 +630,72 @@ async def test_reconfigure_serial_connection_failure(
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "cannot_connect"}
     assert mock_config_entry.data == original
+
+@pytest.mark.asyncio
+async def test_pair_step_does_not_transmit_when_entry_is_not_loaded() -> None:
+    """Creating a subentry must not try to pair through an unloaded entry."""
+    handler = CoverSubentryFlowHandler()
+    handler._cover_input = {CONF_CHANNEL: "4"}
+    runtime = SimpleNamespace(pair=MagicMock())
+    entry = SimpleNamespace(state=None, runtime_data=runtime)
+    handler._get_entry = MagicMock(return_value=entry)
+    handler.async_create_entry = MagicMock(return_value={"type": "create_entry"})
+
+    result = await handler.async_step_pair({CONF_PAIR: True})
+
+    assert result == {"type": "create_entry"}
+    runtime.pair.assert_not_called()
+
+
+def test_swap_db_without_existing_database(tmp_path: Path) -> None:
+    """A first database import does not require an existing backup source."""
+    db_path = tmp_path / "live.db"
+    uploaded = tmp_path / "uploaded.db"
+    backup = tmp_path / "backup.db"
+    uploaded.write_bytes(b"new-db")
+
+    with patch("custom_components.becker.db_transfer.consistent_copy") as copy:
+        _swap_db(db_path, uploaded, backup)
+
+    assert db_path.read_bytes() == b"new-db"
+    copy.assert_not_called()
+
+
+def test_swap_live_db_restores_backup_when_reopen_fails(tmp_path: Path) -> None:
+    """A failed live database reopen restores the previous database."""
+    db_path = tmp_path / "live.db"
+    uploaded = tmp_path / "uploaded.db"
+    backup = tmp_path / "backup.db"
+    db_path.write_bytes(b"old-db")
+    uploaded.write_bytes(b"new-db")
+
+    old_db = MagicMock()
+    becker = SimpleNamespace(db=old_db)
+    restored_db = MagicMock()
+
+    def consistent_copy(source: Path, target: Path) -> None:
+        target.write_bytes(Path(source).read_bytes())
+
+    calls = 0
+
+    def database(path: str):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("cannot reopen")
+        return restored_db
+
+    with (
+        patch(
+            "custom_components.becker.db_transfer.consistent_copy",
+            side_effect=consistent_copy,
+        ),
+        patch("custom_components.becker.pybecker.database.Database", side_effect=database),
+        pytest.raises(RuntimeError, match="cannot reopen"),
+    ):
+        _swap_live_db(becker, db_path, uploaded, backup)
+
+    old_db.close.assert_called_once()
+    assert db_path.read_bytes() == b"old-db"
+    assert becker.db is restored_db
+
