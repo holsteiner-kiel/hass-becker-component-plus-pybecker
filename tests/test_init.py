@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady, ServiceValidationError
 
+from custom_components.becker.pybecker.becker_helper import BeckerConnectionError
+
 from custom_components.becker import (
     _availability_callback,
     _clear_setup_repairs,
