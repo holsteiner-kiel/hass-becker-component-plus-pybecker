@@ -266,6 +266,7 @@ class BeckerCommunicator(threading.Thread):
         self,
         device: str,
         callback: Callable[[re.Match], Any] = None,
+        availability_callback: Callable[[], Any] | None = None,
         deamon: bool = True,
         queue_size: int = 100,
         retry_max: int = 3,
@@ -280,8 +281,10 @@ class BeckerCommunicator(threading.Thread):
         self._stop_flag = threading.Event()
         self._force_stop_flag = threading.Event()
         self._write_queue = queue.Queue(maxsize=queue_size)
-        # Setup callback
+        # Setup callbacks
         self._callback = callback
+        self._availability_callback = availability_callback
+        self._last_available: bool | None = None
         # Setup interface
         self._connection = BeckerConnection(device=device)
         self._read_buffer = bytes()
@@ -291,7 +294,8 @@ class BeckerCommunicator(threading.Thread):
     def run(self) -> None:
         '''Run BeckerCommunicator thread.'''
         _LOGGER.debug('BeckerCommunicator thread started.')
-        callback_valid = False if self._callback is None else True    # pylint: disable=simplifiable-if-expression
+        callback_valid = False if self._callback is None else True
+        self._notify_availability_if_changed()    # pylint: disable=simplifiable-if-expression
         pending_packet = None
         while True:
             # Read bytes from serial port
@@ -332,6 +336,8 @@ class BeckerCommunicator(threading.Thread):
                         self._log(pending_packet, "Sent packet: ")
                         pending_packet = None
 
+            self._notify_availability_if_changed()
+
             # Sleep for thread switch and wait time between packets
             time.sleep(0.1)
             if self._force_stop_flag.is_set():
@@ -346,7 +352,25 @@ class BeckerCommunicator(threading.Thread):
                 and pending_packet is None
             ):
                 break
+        self._notify_availability_if_changed()
         _LOGGER.debug('BeckerCommunicator thread stopped.')
+
+    def _notify_availability_if_changed(self) -> None:
+        """Log and publish communicator availability transitions once."""
+        available = self.is_available()
+        previous = self._last_available
+        if available == previous:
+            return
+
+        self._last_available = available
+        if previous is not None:
+            if available:
+                _LOGGER.info("Becker connection restored")
+            else:
+                _LOGGER.warning("Becker connection unavailable")
+
+        if self._availability_callback is not None:
+            self._availability_callback()
 
     def stop(self) -> None:
         '''Stop BeckerCommunicator thread.'''
