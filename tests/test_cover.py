@@ -17,6 +17,9 @@ from homeassistant.components.cover import (
 )
 from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+
+from custom_components.becker.pybecker.becker_helper import BeckerConnectionError
 
 ENTITY_ID = "cover.kitchen"
 
@@ -109,3 +112,25 @@ async def test_cover_unavailable_when_communicator_is_down(
     await setup_integration(hass, mock_config_entry_with_timed_cover)
 
     assert hass.states.get(ENTITY_ID).state == STATE_UNAVAILABLE
+
+@pytest.mark.usefixtures("mock_becker")
+async def test_cover_action_translates_connection_failure(
+    hass: HomeAssistant,
+    mock_becker,
+    mock_config_entry_with_timed_cover: MockConfigEntry,
+) -> None:
+    """Cover actions expose communicator failures as Home Assistant errors."""
+    await setup_integration(hass, mock_config_entry_with_timed_cover)
+    mock_becker.move_up.side_effect = BeckerConnectionError("offline")
+
+    with pytest.raises(HomeAssistantError) as exc:
+        await hass.services.async_call(
+            COVER_DOMAIN,
+            SERVICE_OPEN_COVER,
+            {ATTR_ENTITY_ID: ENTITY_ID},
+            blocking=True,
+        )
+
+    assert exc.value.translation_domain == "becker"
+    assert exc.value.translation_key == "communication_failed"
+
