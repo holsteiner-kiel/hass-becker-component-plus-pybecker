@@ -35,15 +35,20 @@ def test_service_requires_selector_with_multiple_entries() -> None:
     first = SimpleNamespace(entry_id="entry-1", runtime_data=MagicMock())
     second = SimpleNamespace(entry_id="entry-2", runtime_data=MagicMock())
 
-    with pytest.raises(ServiceValidationError, match="specify entry_id"):
+    with pytest.raises(ServiceValidationError) as exc:
         _get_becker(_hass_with_entries(first, second))
+
+    assert exc.value.translation_key == "entry_id_required"
 
 
 def test_service_rejects_unknown_entry() -> None:
     entry = SimpleNamespace(entry_id="entry-1", runtime_data=MagicMock())
 
-    with pytest.raises(ServiceValidationError, match="is not loaded"):
+    with pytest.raises(ServiceValidationError) as exc:
         _get_becker(_hass_with_entries(entry), "missing")
+
+    assert exc.value.translation_key == "entry_not_loaded"
+    assert exc.value.translation_placeholders == {"entry_id": "missing"}
 
 
 
