@@ -45,7 +45,7 @@ def test_checksum_and_generate_code_are_deterministic() -> None:
     assert len(raw) == 40
     assert raw.startswith("0000000002010B0012")
     assert raw.endswith("020020")
-    assert framed.startswith(raw)
+    assert framed.startswith(raw.upper())
     assert len(framed) == 42
 
 
