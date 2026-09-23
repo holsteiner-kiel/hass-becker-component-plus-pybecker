@@ -133,6 +133,15 @@ def _resolve_db_path(config_dir: str, filename: str | None) -> str:
     return filename
 
 
+def _availability_callback(hass: HomeAssistant, entry_id: str) -> None:
+    """Forward communicator availability changes safely onto the HA event loop."""
+    hass.loop.call_soon_threadsafe(
+        dispatcher_send,
+        hass,
+        availability_signal_for_entry(entry_id),
+    )
+
+
 def _packet_callback(hass: HomeAssistant, entry_id: str, packet) -> None:
     """Forward a received RF packet (runs in the communicator thread)."""
     _LOGGER.debug("Received packet for dispatcher")
@@ -228,9 +237,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: BeckerConfigEntry) -> bo
                 db_filename=filename,
                 callback=partial(_packet_callback, hass, entry.entry_id),
                 availability_callback=partial(
-                    dispatcher_send,
+                    _availability_callback,
                     hass,
-                    availability_signal_for_entry(entry.entry_id),
+                    entry.entry_id,
                 ),
                 queue_size=entry.options.get(CONF_QUEUE_SIZE, DEFAULT_QUEUE_SIZE),
                 retry_max=entry.options.get(
