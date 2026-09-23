@@ -18,6 +18,7 @@ from custom_components.becker import (
     _dispatch_packet_on_loop,
     _get_becker,
     _packet_callback,
+    _remove_stale_cover_devices,
     _repair_issue_id,
     _resolve_db_path,
     _update_listener,
@@ -286,3 +287,65 @@ async def test_setup_entry_reports_connection_failure() -> None:
             await async_setup_entry(hass, entry)
 
     create_issue.assert_called_once()
+
+def test_remove_stale_cover_devices_keeps_root_and_current_cover() -> None:
+    hass = MagicMock()
+    registry = MagicMock()
+    current = SimpleNamespace(
+        id="current",
+        identifiers={("becker", "entry-1_1")},
+    )
+    stale = SimpleNamespace(
+        id="stale",
+        identifiers={("becker", "entry-1_2")},
+    )
+    root = SimpleNamespace(
+        id="root",
+        identifiers={("becker", "entry-1")},
+    )
+    foreign = SimpleNamespace(
+        id="foreign",
+        identifiers={("other", "entry-1_3")},
+    )
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        subentries={
+            "sub-1": SimpleNamespace(
+                subentry_type="cover",
+                data={"channel": "1"},
+            )
+        },
+    )
+
+    with (
+        patch("custom_components.becker.dr.async_get", return_value=registry),
+        patch(
+            "custom_components.becker.dr.async_entries_for_config_entry",
+            return_value=[root, current, stale, foreign],
+        ),
+    ):
+        _remove_stale_cover_devices(hass, entry)
+
+    registry.async_remove_device.assert_called_once_with("stale")
+
+
+def test_remove_stale_cover_devices_removes_all_deleted_covers() -> None:
+    hass = MagicMock()
+    registry = MagicMock()
+    stale = SimpleNamespace(
+        id="stale",
+        identifiers={("becker", "entry-1_4")},
+    )
+    entry = SimpleNamespace(entry_id="entry-1", subentries={})
+
+    with (
+        patch("custom_components.becker.dr.async_get", return_value=registry),
+        patch(
+            "custom_components.becker.dr.async_entries_for_config_entry",
+            return_value=[stale],
+        ),
+    ):
+        _remove_stale_cover_devices(hass, entry)
+
+    registry.async_remove_device.assert_called_once_with("stale")
+
