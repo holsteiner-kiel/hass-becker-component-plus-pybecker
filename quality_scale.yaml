@@ -55,9 +55,7 @@ unique-config-entry: done
 
 # Silver
 
-action-exceptions:
-  status: todo
-  comment: Review user-facing action failures and translated Home Assistant exceptions.
+action-exceptions: done
 
 config-entry-unloading: done
 
