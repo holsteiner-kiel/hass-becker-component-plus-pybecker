@@ -257,6 +257,9 @@
     },
     "entry_id_required": {
       "message": "Mehrere Becker-Konfigurationseinträge sind geladen. Gib einen Eintrag an."
+    },
+    "communication_failed": {
+      "message": "Der Becker-Befehl konnte nicht gesendet werden, weil die Kommunikation mit dem Centronic Stick fehlgeschlagen ist."
     }
   }
 }
