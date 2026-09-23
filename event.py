@@ -75,7 +75,7 @@ class BeckerRemoteEvent(EventEntity):
     @callback
     def _handle_availability(self) -> None:
         """Refresh state after a communicator availability change."""
-        self.async_write_ha_state()
+        self.schedule_update_ha_state()
 
     @callback
     def _handle_packet(self, packet) -> None:
@@ -92,4 +92,4 @@ class BeckerRemoteEvent(EventEntity):
             event_type,
             {"unit_id": unit_id, "channel": channel, "command_code": command_code},
         )
-        self.async_write_ha_state()
+        self.schedule_update_ha_state()
