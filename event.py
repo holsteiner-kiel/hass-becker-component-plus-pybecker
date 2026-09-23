@@ -7,7 +7,7 @@ from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-from . import signal_for_entry
+from . import availability_signal_for_entry, signal_for_entry
 from .const import COMMANDS, DOMAIN
 
 EVENT_TYPES = [
@@ -64,6 +64,18 @@ class BeckerRemoteEvent(EventEntity):
                 self.hass, signal_for_entry(self._entry_id), self._handle_packet
             )
         )
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                availability_signal_for_entry(self._entry_id),
+                self._handle_availability,
+            )
+        )
+
+    @callback
+    def _handle_availability(self) -> None:
+        """Refresh state after a communicator availability change."""
+        self.async_write_ha_state()
 
     @callback
     def _handle_packet(self, packet) -> None:
