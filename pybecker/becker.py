@@ -45,8 +45,17 @@ class Becker:
         Use this class to perform operations on your Becker Shutter using a centronic USB Stick
         This class will as well maintain a call increment in an internal database
     """
-    def __init__(self, device_name=None, init_dummy=False, db_filename=None, callback=None,
-                 queue_size=100, retry_max=3, retry_delay=1.0):
+    def __init__(
+        self,
+        device_name=None,
+        init_dummy=False,
+        db_filename=None,
+        callback=None,
+        availability_callback=None,
+        queue_size=100,
+        retry_max=3,
+        retry_delay=1.0,
+    ):
         """
             Create a new instance of the Becker controller
 
@@ -59,6 +68,7 @@ class Becker:
         self.communicator = BeckerCommunicator(
             device_name,
             callback,
+            availability_callback=availability_callback,
             queue_size=queue_size,
             retry_max=retry_max,
             retry_delay=retry_delay,
