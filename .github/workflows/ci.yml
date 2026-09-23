@@ -32,5 +32,9 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q .
 
-      - name: Run tests
-        run: pytest -c tests/pytest.ini tests
+      - name: Run tests with coverage
+        run: >
+          pytest -c tests/pytest.ini tests
+          --cov=custom_components.becker
+          --cov-branch
+          --cov-report=term-missing
