@@ -7,7 +7,7 @@ import pytest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady, ServiceValidationError
 
 from custom_components.becker import (
     _availability_callback,
@@ -19,6 +19,7 @@ from custom_components.becker import (
     _repair_issue_id,
     _resolve_db_path,
     _update_listener,
+    async_setup_entry,
     async_unload_entry,
     availability_signal_for_entry,
     signal_for_entry,
@@ -230,3 +231,48 @@ async def test_update_listener_schedules_reload() -> None:
     await _update_listener(hass, entry)
 
     hass.config_entries.async_schedule_reload.assert_called_once_with("entry-1")
+
+
+
+def test_resolve_db_path_returns_existing_config_file(tmp_path: Path) -> None:
+    db = tmp_path / "centronic-stick.db"
+    db.write_bytes(b"db")
+
+    assert _resolve_db_path(str(tmp_path), "centronic-stick.db") == str(db)
+
+
+async def test_setup_entry_reports_invalid_database_path() -> None:
+    hass = MagicMock()
+    hass.config.config_dir = "/config"
+    hass.async_add_executor_job = AsyncMock(side_effect=ValueError("bad path"))
+    entry = SimpleNamespace(
+        data={},
+        entry_id="entry-1",
+        title="Stick",
+    )
+
+    with patch("custom_components.becker._create_repair_issue") as create_issue:
+        with pytest.raises(ConfigEntryError, match="Invalid Becker database path"):
+            await async_setup_entry(hass, entry)
+
+    create_issue.assert_called_once()
+
+
+async def test_setup_entry_reports_connection_failure() -> None:
+    hass = MagicMock()
+    hass.config.config_dir = "/config"
+    hass.async_add_executor_job = AsyncMock(
+        side_effect=["/config/centronic-stick.db", BeckerConnectionError("offline")]
+    )
+    entry = SimpleNamespace(
+        data={"device": "/dev/ttyUSB0"},
+        options={},
+        entry_id="entry-1",
+        title="Stick",
+    )
+
+    with patch("custom_components.becker._create_repair_issue") as create_issue:
+        with pytest.raises(ConfigEntryNotReady, match="Could not connect to Becker stick"):
+            await async_setup_entry(hass, entry)
+
+    create_issue.assert_called_once()
