@@ -184,14 +184,14 @@ class BeckerConnection():
                 ) from err
 
             if self.is_serial:
-                _LOGGER.warning(
+                _LOGGER.debug(
                     "Establish connection to %s failed, will retry: %s",
                     self.device,
                     err,
                 )
                 self._maybe_rebuild()
             else:
-                _LOGGER.warning(
+                _LOGGER.debug(
                     "Establish connection to %s failed, will retry: %s",
                     self.device,
                     err,
