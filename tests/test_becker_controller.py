@@ -212,3 +212,160 @@ async def test_init_configured_unit_is_noop() -> None:
 
     controller.db.set_unit.assert_not_called()
     controller.stop.assert_not_awaited()
+
+
+
+def test_constructor_builds_components_and_starts_communicator() -> None:
+    communicator = MagicMock()
+    database = MagicMock()
+    database.get_all_units.return_value = []
+
+    with (
+        patch(
+            "custom_components.becker.pybecker.becker.BeckerCommunicator",
+            return_value=communicator,
+        ) as communicator_cls,
+        patch(
+            "custom_components.becker.pybecker.becker.Database",
+            return_value=database,
+        ) as database_cls,
+    ):
+        controller = Becker(
+            device_name="/dev/ttyUSB0",
+            init_dummy=True,
+            db_filename="state.db",
+            callback=MagicMock(),
+            availability_callback=MagicMock(),
+            queue_size=50,
+            retry_max=4,
+            retry_delay=0.25,
+        )
+
+    communicator_cls.assert_called_once()
+    database_cls.assert_called_once_with("state.db")
+    database.init_dummy.assert_called_once()
+    communicator.start.assert_called_once()
+    assert controller.communicator is communicator
+    assert controller.db is database
+
+
+def test_constructor_skips_dummy_when_units_exist() -> None:
+    communicator = MagicMock()
+    database = MagicMock()
+    database.get_all_units.return_value = [["1737b", 1, 1]]
+
+    with (
+        patch(
+            "custom_components.becker.pybecker.becker.BeckerCommunicator",
+            return_value=communicator,
+        ),
+        patch(
+            "custom_components.becker.pybecker.becker.Database",
+            return_value=database,
+        ),
+    ):
+        Becker(init_dummy=True)
+
+    database.init_dummy.assert_not_called()
+
+
+def test_close_closes_communicator_and_database() -> None:
+    controller = _controller()
+
+    controller.close()
+
+    controller.communicator.close.assert_called_once()
+    controller.db.close.assert_called_once()
+
+
+async def test_write_finalizes_and_queues_codes() -> None:
+    controller = _controller()
+
+    with patch(
+        "custom_components.becker.pybecker.becker.asyncio.to_thread",
+        new=AsyncMock(),
+    ) as to_thread:
+        await controller.write(["ABC", "DEF"])
+
+    assert to_thread.await_count == 2
+    assert to_thread.await_args_list[0].args[1] == b"\x02ABC\x03"
+    assert to_thread.await_args_list[1].args[1] == b"\x02DEF\x03"
+
+
+@pytest.mark.parametrize(
+    ("command", "constants"),
+    [
+        (
+            "CLEARPOS",
+            [
+                becker_module.COMMAND_PAIR,
+                becker_module.COMMAND_CLEARPOS,
+                becker_module.COMMAND_CLEARPOS2,
+                becker_module.COMMAND_CLEARPOS3,
+                becker_module.COMMAND_CLEARPOS4,
+            ],
+        ),
+        (
+            "REMOVE",
+            [
+                becker_module.COMMAND_PAIR2,
+                0x00,
+                becker_module.COMMAND_PAIR2,
+                becker_module.COMMAND_PAIR3,
+                becker_module.COMMAND_PAIR4,
+            ],
+        ),
+        (
+            "TRAINMASTER",
+            [
+                becker_module.COMMAND_PAIR,
+                becker_module.COMMAND_PAIR2,
+                becker_module.COMMAND_PAIR3,
+                becker_module.COMMAND_PAIR4,
+            ],
+        ),
+    ],
+)
+async def test_run_codes_extended_sequences(
+    command: str, constants: list[int]
+) -> None:
+    controller = _controller()
+    controller.write = AsyncMock()
+    unit = ["1737b", 40, 1]
+
+    with patch(
+        "custom_components.becker.pybecker.becker.generate_code",
+        side_effect=lambda channel, current_unit, cmd: (current_unit[1], cmd),
+    ):
+        await controller.run_codes(1, unit, command, False)
+
+    sent = controller.write.await_args.args[0]
+    assert [cmd for _, cmd in sent] == constants
+    if command == "TRAINMASTER":
+        assert unit[2] == 1
+
+
+async def test_timed_down_move_sends_down_then_stop() -> None:
+    controller = _controller()
+    controller.write = AsyncMock()
+    unit = ["1737b", 50, 1]
+
+    with (
+        patch(
+            "custom_components.becker.pybecker.becker.generate_code",
+            side_effect=lambda channel, current_unit, cmd: (current_unit[1], cmd),
+        ),
+        patch(
+            "custom_components.becker.pybecker.becker.asyncio.sleep",
+            new=AsyncMock(),
+        ) as sleep,
+    ):
+        await controller.run_codes(1, unit, "DOWN:3", False)
+
+    assert controller.write.await_args_list[0].args[0] == [
+        (50, becker_module.COMMAND_DOWN)
+    ]
+    assert controller.write.await_args_list[1].args[0] == [
+        (51, becker_module.COMMAND_HALT)
+    ]
+    sleep.assert_awaited_once_with(3)
