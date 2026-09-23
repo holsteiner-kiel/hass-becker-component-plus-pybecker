@@ -71,13 +71,9 @@ entity-unavailable: done
 
 integration-owner: done
 
-log-when-unavailable:
-  status: todo
-  comment: Verify that disconnect/reconnect logging follows the once-unavailable/once-recovered rule.
+log-when-unavailable: done
 
-parallel-updates:
-  status: todo
-  comment: Verify the appropriate platform-level PARALLEL_UPDATES behavior for command entities.
+parallel-updates: done
 
 reauthentication-flow:
   status: exempt
