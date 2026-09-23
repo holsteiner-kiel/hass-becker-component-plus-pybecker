@@ -67,6 +67,8 @@ from .travelcalculator import TravelCalculator
 
 _LOGGER = logging.getLogger(__name__)
 
+PARALLEL_UPDATES = 1
+
 COVER_FEATURES = CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE | CoverEntityFeature.STOP
 
 COVER_SCHEMA = vol.Schema(
