@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import logging
 
 from homeassistant.components.cover import ATTR_POSITION, CoverEntityFeature
 from homeassistant.exceptions import TemplateError
@@ -17,11 +18,14 @@ from custom_components.becker.const import (
     CONF_TILT_BLIND,
     CONF_TILT_INTERMEDIATE,
     CONF_TILT_TIME_BLIND,
+    CONF_CHANNEL,
+    CONF_FRIENDLY_NAME,
+    CONF_VALUE_TEMPLATE,
     CONF_TRAVELLING_TIME_DOWN,
     CONF_TRAVELLING_TIME_UP,
     OPEN_POSITION,
 )
-from custom_components.becker.cover import BeckerEntity
+from custom_components.becker.cover import BeckerEntity, _create_entity
 
 
 def _entity(
@@ -341,3 +345,233 @@ def test_availability_handler_schedules_state_update() -> None:
     entity._handle_availability()
 
     entity.schedule_update_ha_state.assert_called_once()
+
+
+
+def test_create_entity_defaults_name_and_tilt_intermediate() -> None:
+    hass = MagicMock()
+    becker = MagicMock()
+    entity = _create_entity(
+        hass,
+        becker,
+        "entry-1",
+        "packet",
+        "availability",
+        {CONF_CHANNEL: "2"},
+    )
+
+    assert entity._name == "Channel 2"
+    assert entity._tilt_intermediate is True
+    assert entity._tilt_blind is False
+
+
+def test_create_entity_disables_tilt_intermediate_when_intermediate_disabled(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    hass = MagicMock()
+    entity = _create_entity(
+        hass,
+        MagicMock(),
+        "entry-1",
+        "packet",
+        "availability",
+        {
+            CONF_CHANNEL: "1",
+            CONF_FRIENDLY_NAME: "Kitchen",
+            CONF_INTERMEDIATE_POSITION: False,
+            CONF_TILT_INTERMEDIATE: True,
+        },
+    )
+
+    assert entity._tilt_intermediate is False
+    assert CONF_TILT_INTERMEDIATE in caplog.text
+
+
+def test_create_entity_prefers_blind_when_both_tilt_modes_enabled(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    hass = MagicMock()
+    entity = _create_entity(
+        hass,
+        MagicMock(),
+        "entry-1",
+        "packet",
+        "availability",
+        {
+            CONF_CHANNEL: "1",
+            CONF_FRIENDLY_NAME: "Kitchen",
+            CONF_TILT_INTERMEDIATE: True,
+            CONF_TILT_BLIND: True,
+        },
+    )
+
+    assert entity._tilt_intermediate is False
+    assert entity._tilt_blind is True
+    assert CONF_TILT_BLIND in caplog.text
+
+
+def test_create_entity_warns_when_template_and_travel_time_are_combined(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    hass = MagicMock()
+    caplog.set_level(logging.WARNING)
+
+    _create_entity(
+        hass,
+        MagicMock(),
+        "entry-1",
+        "packet",
+        "availability",
+        {
+            CONF_CHANNEL: "1",
+            CONF_VALUE_TEMPLATE: "{{ 50 }}",
+            CONF_TRAVELLING_TIME_UP: 10,
+        },
+    )
+
+    assert "Both" in caplog.text
+
+
+async def test_added_to_hass_restores_previous_position() -> None:
+    entity = _entity()
+    entity.async_get_last_state = AsyncMock(
+        return_value=SimpleNamespace(attributes={"current_position": 35})
+    )
+    entity.async_on_remove = MagicMock()
+    entity.hass = MagicMock()
+
+    with patch(
+        "custom_components.becker.cover.async_dispatcher_connect",
+        return_value=MagicMock(),
+    ):
+        await entity.async_added_to_hass()
+
+    assert entity.current_cover_position == 35
+
+
+async def test_added_to_hass_defaults_unknown_position_to_closed() -> None:
+    entity = _entity()
+    entity._tc._last_known_position = None
+    entity.async_get_last_state = AsyncMock(return_value=None)
+    entity.async_on_remove = MagicMock()
+    entity.hass = MagicMock()
+
+    with patch(
+        "custom_components.becker.cover.async_dispatcher_connect",
+        return_value=MagicMock(),
+    ):
+        await entity.async_added_to_hass()
+
+    assert entity.current_cover_position == CLOSED_POSITION
+
+
+async def test_added_to_hass_registers_template_tracking() -> None:
+    template = MagicMock()
+    entity = _entity(template=template)
+    entity.async_get_last_state = AsyncMock(return_value=None)
+    entity.async_on_remove = MagicMock()
+    entity.hass = MagicMock()
+    info = MagicMock()
+
+    with (
+        patch(
+            "custom_components.becker.cover.async_dispatcher_connect",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "custom_components.becker.cover.async_track_template_result",
+            return_value=info,
+        ) as track,
+    ):
+        await entity.async_added_to_hass()
+
+    track.assert_called_once()
+    info.async_refresh.assert_called_once()
+
+
+async def test_will_remove_runs_all_temporary_callbacks() -> None:
+    entity = _entity()
+    first = MagicMock()
+    second = MagicMock()
+    entity._callbacks = {"one": first, "two": second}
+
+    await entity.async_will_remove_from_hass()
+
+    first.assert_called_once()
+    second.assert_called_once()
+
+
+def test_current_state_helpers_without_position_feature() -> None:
+    entity = _entity(travel_time_down=None, travel_time_up=None)
+
+    assert entity.is_opening is False
+    assert entity.is_closing is False
+
+
+def test_scheduled_state_update_can_only_cancel_existing_callback() -> None:
+    entity = _entity()
+    cancel = MagicMock()
+    entity._callbacks["update_ha"] = cancel
+
+    entity._update_scheduled_ha_state_callback(None)
+
+    cancel.assert_called_once()
+
+
+def test_scheduled_stop_can_only_cancel_existing_callback() -> None:
+    entity = _entity()
+    cancel = MagicMock()
+    entity._callbacks["travel_stop"] = cancel
+
+    entity._update_scheduled_stop_travel_callback(None)
+
+    cancel.assert_called_once()
+
+
+async def test_remote_release_stops_tilt_blind_during_tilt_window() -> None:
+    entity = _entity(tilt_blind=True, remote_id="1737B:1")
+    entity._travel_stop = MagicMock()
+    entity._tilt_timeout = 200
+
+    with (
+        patch("custom_components.becker.cover.time.time", return_value=100),
+        patch.object(
+            type(entity),
+            "is_opening",
+            new_callable=__import__("unittest.mock").mock.PropertyMock,
+            return_value=True,
+        ),
+    ):
+        await entity._async_message_received(
+            _packet(command=b"0", argument=b"0")
+        )
+
+    entity._travel_stop.assert_called_once()
+
+
+async def test_remote_intermediate_is_ignored_when_disabled() -> None:
+    entity = _entity(
+        intermediate_position=False,
+        remote_id="1737B:1",
+    )
+    entity._travel_to_position = MagicMock()
+
+    await entity._async_message_received(
+        _packet(command=b"2", argument=b"4")
+    )
+
+    entity._travel_to_position.assert_not_called()
+
+
+async def test_template_invalid_result_keeps_current_position() -> None:
+    entity = _entity(template=MagicMock())
+    entity.async_schedule_update_ha_state = MagicMock()
+    entity._tc.set_position(40)
+    before = entity.current_cover_position
+
+    await entity._async_on_template_update(
+        None, [SimpleNamespace(result="definitely-invalid")]
+    )
+
+    assert entity.current_cover_position == before
+    entity.async_schedule_update_ha_state.assert_called_once()
