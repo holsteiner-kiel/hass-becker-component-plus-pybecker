@@ -7,6 +7,7 @@ import pytest
 import logging
 
 from homeassistant.components.cover import ATTR_POSITION, CoverEntityFeature
+from homeassistant.const import CONF_FRIENDLY_NAME, CONF_VALUE_TEMPLATE
 from homeassistant.exceptions import TemplateError
 
 from custom_components.becker.const import (
@@ -19,8 +20,6 @@ from custom_components.becker.const import (
     CONF_TILT_INTERMEDIATE,
     CONF_TILT_TIME_BLIND,
     CONF_CHANNEL,
-    CONF_FRIENDLY_NAME,
-    CONF_VALUE_TEMPLATE,
     CONF_TRAVELLING_TIME_DOWN,
     CONF_TRAVELLING_TIME_UP,
     OPEN_POSITION,
