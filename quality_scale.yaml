@@ -1,0 +1,170 @@
+rules:
+
+# Bronze
+
+action-setup: done
+
+appropriate-polling:
+  status: exempt
+  comment: The integration is local push and does not poll the Becker stick.
+
+brands: done
+
+common-modules: done
+
+config-flow-test-coverage:
+  status: todo
+  comment: Config-flow coverage is high but not yet complete.
+
+config-flow: done
+
+dependency-transparency:
+  status: todo
+  comment: |
+    Becker protocol support is currently maintained as a bundled pybecker fork.
+    A Home Assistant Core submission would require evaluating extraction to a
+    separately released, transparent dependency.
+
+docs-actions: done
+
+docs-conditions:
+  status: exempt
+  comment: The integration does not provide custom conditions.
+
+docs-high-level-description: done
+
+docs-installation-instructions: done
+
+docs-removal-instructions:
+  status: todo
+  comment: Add explicit removal/uninstall instructions to the README.
+
+docs-triggers:
+  status: exempt
+  comment: The integration exposes an event entity but no custom trigger platform.
+
+entity-event-setup: done
+
+entity-unique-id: done
+
+has-entity-name: done
+
+runtime-data: done
+
+test-before-configure: done
+
+test-before-setup: done
+
+unique-config-entry: done
+
+# Silver
+
+action-exceptions:
+  status: todo
+  comment: Review user-facing action failures and translated Home Assistant exceptions.
+
+config-entry-unloading: done
+
+docs-configuration-parameters: done
+
+docs-installation-parameters: done
+
+entity-unavailable: done
+
+integration-owner: done
+
+log-when-unavailable:
+  status: todo
+  comment: Verify that disconnect/reconnect logging follows the once-unavailable/once-recovered rule.
+
+parallel-updates:
+  status: todo
+  comment: Verify the appropriate platform-level PARALLEL_UPDATES behavior for command entities.
+
+reauthentication-flow:
+  status: exempt
+  comment: The Becker Centronic stick has no authentication.
+
+test-coverage: done
+
+# Gold
+
+devices: done
+
+diagnostics: done
+
+discovery-update-info:
+  status: todo
+  comment: Revisit together with USB discovery support.
+
+discovery:
+  status: todo
+  comment: Evaluate USB discovery once the Centronic stick VID/PID descriptors are confirmed.
+
+docs-data-update:
+  status: todo
+  comment: Document push updates, travel-time position estimation and remote RF updates explicitly.
+
+docs-examples:
+  status: todo
+  comment: Add current UI/event-entity automation examples.
+
+docs-known-limitations:
+  status: todo
+  comment: Add a dedicated known-limitations section.
+
+docs-supported-devices:
+  status: todo
+  comment: Expand the supported/unsupported hardware section.
+
+docs-supported-functions: done
+
+docs-troubleshooting: done
+
+docs-use-cases:
+  status: todo
+  comment: Add end-user use cases based on the UI configuration workflow.
+
+dynamic-devices:
+  status: exempt
+  comment: Covers are explicitly added and removed by the user as config subentries.
+
+entity-category: done
+
+entity-device-class: done
+
+entity-disabled-by-default:
+  status: exempt
+  comment: The integration does not expose noisy or niche entities that should default to disabled.
+
+entity-translations: done
+
+exception-translations:
+  status: todo
+  comment: Review runtime and action errors for translation-key based exceptions.
+
+icon-translations:
+  status: todo
+  comment: Review whether translated state/entity icons are appropriate for any Becker entities.
+
+reconfiguration-flow: done
+
+repair-issues: done
+
+stale-devices:
+  status: todo
+  comment: Verify device-registry cleanup when cover subentries are removed.
+
+# Platinum
+
+async-dependency:
+  status: todo
+  comment: The bundled serial/RF library uses blocking I/O behind executor/thread boundaries.
+
+inject-websession:
+  status: exempt
+  comment: The integration communicates locally over serial or TCP and does not use HTTP.
+
+strict-typing:
+  status: todo
+  comment: Complete type annotations and add strict static type checking.
