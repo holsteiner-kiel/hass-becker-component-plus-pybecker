@@ -276,3 +276,128 @@ def test_diagnostics_handles_zero_queue_capacity() -> None:
 
     assert diagnostics["queue_percent"] == 0.0
     assert diagnostics["transport"] == "serial"
+
+
+
+def test_open_returns_when_transport_is_already_open() -> None:
+    connection = BeckerConnection.__new__(BeckerConnection)
+    transport = MagicMock()
+    transport.is_open = True
+    connection._connection = transport
+
+    connection._open()
+
+    transport.open.assert_not_called()
+
+
+def test_open_runtime_serial_failure_triggers_rebuild() -> None:
+    connection = BeckerConnection.__new__(BeckerConnection)
+    connection._device = "/dev/ttyUSB0"
+    connection._is_serial = True
+    connection._last_rebuild_attempt = 0.0
+    transport = MagicMock()
+    transport.is_open = False
+    transport.open.side_effect = OSError("gone")
+    connection._connection = transport
+    connection._maybe_rebuild = MagicMock()
+
+    connection._open()
+
+    connection._maybe_rebuild.assert_called_once()
+
+
+def test_open_runtime_network_failure_does_not_rebuild() -> None:
+    connection = BeckerConnection.__new__(BeckerConnection)
+    connection._device = "socket://host:5000"
+    connection._is_serial = False
+    connection._last_rebuild_attempt = 0.0
+    transport = MagicMock()
+    transport.is_open = False
+    transport.open.side_effect = OSError("offline")
+    connection._connection = transport
+    connection._maybe_rebuild = MagicMock()
+
+    connection._open()
+
+    connection._maybe_rebuild.assert_not_called()
+
+
+def test_maybe_rebuild_is_rate_limited() -> None:
+    connection = BeckerConnection.__new__(BeckerConnection)
+    connection._device = "/dev/ttyUSB0"
+    connection._is_serial = True
+    connection._last_rebuild_attempt = 100.0
+    connection._connection = MagicMock()
+
+    with patch(
+        "custom_components.becker.pybecker.becker_helper.time.time",
+        return_value=105.0,
+    ):
+        connection._build_serial = MagicMock()
+        connection._maybe_rebuild()
+
+    connection._build_serial.assert_not_called()
+
+
+def test_maybe_rebuild_replaces_transport() -> None:
+    connection = BeckerConnection.__new__(BeckerConnection)
+    connection._device = "/dev/ttyUSB0"
+    connection._is_serial = True
+    connection._last_rebuild_attempt = 0.0
+    old_transport = MagicMock()
+    new_transport = MagicMock()
+    connection._connection = old_transport
+    connection._build_serial = MagicMock(return_value=new_transport)
+
+    with patch(
+        "custom_components.becker.pybecker.becker_helper.time.time",
+        return_value=100.0,
+    ):
+        connection._maybe_rebuild()
+
+    old_transport.close.assert_called_once()
+    assert connection._connection is new_transport
+
+
+def test_maybe_rebuild_keeps_old_transport_when_build_fails() -> None:
+    connection = BeckerConnection.__new__(BeckerConnection)
+    connection._device = "/dev/ttyUSB0"
+    connection._is_serial = True
+    connection._last_rebuild_attempt = 0.0
+    old_transport = MagicMock()
+    connection._connection = old_transport
+    connection._build_serial = MagicMock(
+        side_effect=BeckerConnectionError("nope")
+    )
+
+    with patch(
+        "custom_components.becker.pybecker.becker_helper.time.time",
+        return_value=100.0,
+    ):
+        connection._maybe_rebuild()
+
+    assert connection._connection is old_transport
+
+
+def test_close_skips_already_closed_transport() -> None:
+    connection = BeckerConnection.__new__(BeckerConnection)
+    transport = MagicMock()
+    transport.is_open = False
+    connection._connection = transport
+
+    connection.close()
+
+    transport.close.assert_not_called()
+
+
+def test_send_raises_after_all_queue_retries() -> None:
+    communicator = _communicator()
+    communicator._retry_max = 1
+    communicator._write_queue = MagicMock()
+    communicator._write_queue.qsize.return_value = 10
+    communicator._write_queue.put.side_effect = queue.Full()
+
+    with pytest.raises(BeckerConnectionError, match="queue is full"):
+        communicator.send(b"packet")
+
+    assert communicator._write_queue.put.call_count == 2
