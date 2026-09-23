@@ -32,6 +32,8 @@ def test_english_and_german_translation_keys_match() -> None:
     assert _leaf_keys(_load("en")) == _leaf_keys(_load("de"))
 
 
-def test_custom_integration_does_not_ship_core_strings_file() -> None:
-    """Custom integrations load translations directly from translations/."""
-    assert not (ROOT / "strings.json").exists()
+def test_strings_and_bundled_translation_keys_match() -> None:
+    """Keep source strings and bundled languages structurally aligned."""
+    strings = json.loads((ROOT / "strings.json").read_text(encoding="utf-8"))
+    assert _leaf_keys(strings) == _leaf_keys(_load("en"))
+    assert _leaf_keys(strings) == _leaf_keys(_load("de"))
