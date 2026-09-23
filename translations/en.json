@@ -257,6 +257,9 @@
     },
     "entry_id_required": {
       "message": "Multiple Becker configuration entries are loaded. Specify an entry."
+    },
+    "communication_failed": {
+      "message": "The Becker command could not be sent because communication with the Centronic stick failed."
     }
   }
 }
