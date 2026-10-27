@@ -1,0 +1,49 @@
+name: Validate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  hacs:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration
+          # Brand images ship in the repository's brand/ folder.
+          ignore: brands
+
+  hassfest:
+    name: Hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Hassfest expects custom_components/<domain>; this repository keeps
+      # the integration in its root (HACS content_in_root layout).
+      - name: Arrange integration for hassfest
+        run: |
+          mkdir -p "$RUNNER_TEMP/becker"
+          rsync -a \
+            --exclude '.git' --exclude '.github' --exclude 'tests' \
+            --exclude '*.md' --exclude 'LICENSE' --exclude 'hacs.json' \
+            --exclude 'requirements_test.txt' --exclude '.gitignore' \
+            ./ "$RUNNER_TEMP/becker/"
+          find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          mkdir -p custom_components
+          mv "$RUNNER_TEMP/becker" custom_components/becker
+
+      - name: Hassfest validation
+        uses: home-assistant/actions/hassfest@master

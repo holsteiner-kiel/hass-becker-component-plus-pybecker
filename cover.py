@@ -424,6 +424,9 @@ class BeckerEntity(CoverEntity, RestoreEntity):
 
     def _travel_to_position(self, position):
         """Start TravelCalculator and update ha-state."""
+        # A new movement replaces any stop scheduled by an earlier partial
+        # move or tilt; callers that need a stop schedule it afterwards.
+        self._update_scheduled_stop_travel_callback(None)
         # In TravelCalculator 0 is open, 100 is closed. Swap from_ and to_ position
         travel_time = self._tc.calculate_travel_time(
             position, self.current_cover_position
@@ -442,6 +445,7 @@ class BeckerEntity(CoverEntity, RestoreEntity):
 
     def _travel_stop(self):
         """Stop TravelCalculator and update ha-state."""
+        self._update_scheduled_stop_travel_callback(None)
         self._tc.stop()
         if not (self._cover_features & CoverEntityFeature.SET_POSITION) and self._template is None:
             self._tc.set_position(50)

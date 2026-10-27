@@ -2,17 +2,17 @@
   "domain": "becker",
   "name": "Becker",
   "codeowners": [
-    "@holsteiner-kiel"
+    "@Gyang91"
   ],
   "config_flow": true,
   "dependencies": [
     "http"
   ],
-  "documentation": "https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker",
-  "issue_tracker": "https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker/issues",
+  "documentation": "https://github.com/Gyang91/hass-becker-component-plus-pybecker",
   "iot_class": "local_push",
+  "issue_tracker": "https://github.com/Gyang91/hass-becker-component-plus-pybecker/issues",
   "requirements": [
     "pyserial==3.5"
   ],
-  "version": "0.7.1"
+  "version": "0.7.2"
 }

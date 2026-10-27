@@ -2,8 +2,8 @@
 
 <p align="center"><img src="brand/logo.png" alt="Becker for Home Assistant" width="512"></p>
 
-[![CI](https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker/actions/workflows/ci.yml/badge.svg)](https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker/actions/workflows/ci.yml)
-![Version](https://img.shields.io/badge/version-0.7.1-blue)
+[![CI](https://github.com/Gyang91/hass-becker-component-plus-pybecker/actions/workflows/ci.yml/badge.svg)](https://github.com/Gyang91/hass-becker-component-plus-pybecker/actions/workflows/ci.yml)
+![Version](https://img.shields.io/badge/version-0.7.2-blue)
 
 A maintained Home Assistant integration for controlling **Becker Centronic RF covers** with a Becker Centronic USB stick.
 
@@ -37,7 +37,7 @@ The bundled `pybecker/` code is based on Nicolas Berthel's **pybecker 1.1.0** an
 
 ### HACS
 
-1. Add this repository to HACS as a custom integration repository if it is not already available in your HACS installation.
+1. In HACS, open **⋮ → Custom repositories**, add `https://github.com/Gyang91/hass-becker-component-plus-pybecker` with type **Integration**.
 2. Install **Becker Centronic**.
 3. Restart Home Assistant.
 4. Go to **Settings → Devices & services → Add integration** and search for **Becker**.
@@ -473,6 +473,6 @@ If you require additional help have a look at the
 Becker integration: 
 [Integrating Becker Motors](https://community.home-assistant.io/t/integrating-becker-motors-in-to-hassio/151705)
 Another way is to open a new issue on 
-[GitHub](https://github.com/holsteiner-kiel/hass-becker-component-plus-pybecker/issues).
+[GitHub](https://github.com/Gyang91/hass-becker-component-plus-pybecker/issues).
 
 To disable debug log for becker set the level back from `debug` to `info`.

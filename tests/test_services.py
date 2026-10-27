@@ -108,6 +108,28 @@ async def test_registered_log_units_service_reads_units() -> None:
 
     list_units.assert_awaited_once()
 
+
+@pytest.mark.asyncio
+async def test_log_units_reports_real_unit_id_with_gaps(caplog) -> None:
+    """Unit 3 stays unit 3 even when units 1 and 2 are not configured."""
+    hass = MagicMock()
+    list_units = AsyncMock(return_value=[["1737d", 7, 1]])
+    entry = SimpleNamespace(entry_id="entry-1", runtime_data=SimpleNamespace(list_units=list_units))
+    hass.config_entries.async_loaded_entries.return_value = [entry]
+    handlers = {}
+
+    def register(domain, service, handler, schema):
+        handlers[service] = handler
+
+    hass.services.async_register.side_effect = register
+    hass.http.register_view = MagicMock()
+    await async_setup(hass, {})
+
+    with caplog.at_level("INFO"):
+        await handlers["log_units"](SimpleNamespace(data={}))
+
+    assert "Unit id 3, unit code 1737d, increment 7" in caplog.text
+
 @pytest.mark.asyncio
 async def test_registered_pair_service_translates_connection_failure() -> None:
     """The legacy pair service exposes communicator failures cleanly."""

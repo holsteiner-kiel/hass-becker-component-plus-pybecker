@@ -35,6 +35,9 @@ MESSAGE = re.compile(
     + ETX, re.I
 )
 
+# STX + 40 hex chars + 2 hex checksum + ETX
+MAX_FRAME_LENGTH = 44
+
 COMMANDS = {b'0': 'RELEASE', b'1': 'HALT', b'2': 'UP', b'4': 'DOWN', b'8': 'TRAIN'}
 COMMUNICATION_TIMEOUT = 0.3
 
@@ -383,7 +386,15 @@ class BeckerCommunicator(threading.Thread):
             self._log(data.group(0), "Received packet: ")
             self._callback(data)
             end = data.end()
-        self._read_buffer = self._read_buffer[end:]
+        rest = self._read_buffer[end:]
+        # Keep only a possible partial frame (from the last STX on). Bytes
+        # that cannot become a frame would otherwise grow the buffer forever.
+        start = rest.rfind(STX)
+        if start < 0 or len(rest) - start > MAX_FRAME_LENGTH:
+            rest = bytes()
+        else:
+            rest = rest[start:]
+        self._read_buffer = rest
 
     def _log(self, packet: bytes, text: str = "") -> None:
         """Log packets."""

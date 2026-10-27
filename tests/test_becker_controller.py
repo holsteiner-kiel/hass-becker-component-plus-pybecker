@@ -6,6 +6,7 @@ import pytest
 
 from custom_components.becker.pybecker import becker as becker_module
 from custom_components.becker.pybecker.becker import Becker
+from custom_components.becker.pybecker.becker_helper import BeckerConnectionError
 
 
 def _controller() -> Becker:
@@ -167,10 +168,37 @@ async def test_timed_move_sends_move_then_stop() -> None:
     assert controller.write.await_args_list[1].args[0] == [
         (31, becker_module.COMMAND_HALT)
     ]
-    # The final empty write comes from the common command-list path.
-    assert controller.write.await_args_list[2].args[0] == []
+    assert controller.write.await_count == 2
     sleep.assert_awaited_once_with(2)
     assert unit[1] == 32
+    # Each packet's counter is persisted before it is queued.
+    assert controller.db.set_unit.call_count == 2
+
+
+async def test_counter_persisted_before_queueing() -> None:
+    """A failure while queueing must not leave the counter un-persisted."""
+    controller = _controller()
+    unit = ["1737b", 20, 1]
+    events: list[str] = []
+    controller.db.set_unit.side_effect = lambda *_: events.append("persist")
+
+    async def failing_write(codes):
+        events.append("write")
+        raise BeckerConnectionError("queue full")
+
+    controller.write = failing_write
+
+    with (
+        patch(
+            "custom_components.becker.pybecker.becker.generate_code",
+            side_effect=lambda channel, current_unit, cmd: (current_unit[1], cmd),
+        ),
+        pytest.raises(BeckerConnectionError),
+    ):
+        await controller.run_codes(1, unit, "TRAIN", False)
+
+    assert events == ["persist", "write"]
+    controller.db.set_unit.assert_called_once_with(["1737b", 26, 1], False)
 
 
 async def test_list_units_returns_database_units() -> None:

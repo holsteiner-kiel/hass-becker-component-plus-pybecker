@@ -233,6 +233,50 @@ def test_scheduled_stop_replaces_old_callback() -> None:
     call_later.assert_called_once()
 
 
+async def test_new_movement_cancels_pending_partial_stop() -> None:
+    """Opening fully after a partial move must not be halted by the old stop."""
+    entity = _entity()
+    entity._update_scheduled_ha_state_callback = MagicMock()
+    pending_stop = MagicMock()
+    entity._callbacks["travel_stop"] = pending_stop
+
+    await entity.async_open_cover()
+
+    pending_stop.assert_called_once()
+    assert "travel_stop" not in entity._callbacks
+
+
+def test_manual_stop_cancels_pending_partial_stop() -> None:
+    entity = _entity()
+    entity._update_scheduled_ha_state_callback = MagicMock()
+    pending_stop = MagicMock()
+    entity._callbacks["travel_stop"] = pending_stop
+
+    entity._travel_stop()
+
+    pending_stop.assert_called_once()
+    assert "travel_stop" not in entity._callbacks
+
+
+async def test_set_position_keeps_only_its_own_stop() -> None:
+    entity = _entity()
+    entity._tc.set_position(50)
+    entity._update_scheduled_ha_state_callback = MagicMock()
+    entity.hass = MagicMock()
+    old_stop = MagicMock()
+    entity._callbacks["travel_stop"] = old_stop
+    new_stop = MagicMock()
+
+    with patch(
+        "custom_components.becker.cover.async_call_later",
+        return_value=new_stop,
+    ):
+        await entity.async_set_cover_position(**{ATTR_POSITION: 25})
+
+    old_stop.assert_called_once()
+    assert entity._callbacks["travel_stop"] is new_stop
+
+
 @pytest.mark.parametrize(
     ("command", "argument", "target"),
     [

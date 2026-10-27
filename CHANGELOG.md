@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.2
+
+A bug-fix and HACS-readiness release. Entity IDs, unique IDs, the
+`centronic-stick.db` file and the YAML import are unchanged.
+
+- Fix a scheduled partial-move stop halting a later open/close/stop or remote command
+- Persist the rolling-code counter before queueing RF packets, so a failed send can never cause counter reuse
+- Trim the receive buffer to a possible partial frame, so line noise cannot grow it without bound
+- Release the stick and communicator thread when setup fails after the connection was opened
+- Report the real unit id in the `log_units` service when lower units are unconfigured
+- Point manifest links and code owner to this repository; add HACS and hassfest validation
+
 ## 0.6.1
 
 A connectivity visibility and availability refresh release.

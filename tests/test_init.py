@@ -288,6 +288,41 @@ async def test_setup_entry_reports_connection_failure() -> None:
 
     create_issue.assert_called_once()
 
+
+async def test_setup_entry_closes_stick_when_unit_sync_fails() -> None:
+    """A failure after opening the stick must release it for the retry."""
+    becker = MagicMock()
+    becker.init_unconfigured_unit = AsyncMock(
+        side_effect=BeckerConnectionError("queue full")
+    )
+    hass = MagicMock()
+    hass.config.config_dir = "/config"
+    executor_results = iter(["/config/centronic-stick.db", becker])
+
+    async def executor(func, *args):
+        if func is becker.close:
+            return func()
+        return next(executor_results)
+
+    hass.async_add_executor_job = AsyncMock(side_effect=executor)
+    entry = SimpleNamespace(
+        data={"device": "/dev/ttyUSB0"},
+        options={},
+        entry_id="entry-1",
+        title="Stick",
+        subentries={
+            "sub-1": SimpleNamespace(
+                subentry_type="cover", data={"channel": "1"}, title="Kitchen"
+            )
+        },
+    )
+
+    with patch("custom_components.becker._clear_setup_repairs"):
+        with pytest.raises(ConfigEntryNotReady, match="Could not initialize"):
+            await async_setup_entry(hass, entry)
+
+    becker.close.assert_called_once()
+
 def test_remove_stale_cover_devices_keeps_root_and_current_cover() -> None:
     hass = MagicMock()
     registry = MagicMock()

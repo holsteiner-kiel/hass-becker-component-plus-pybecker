@@ -179,12 +179,35 @@ def test_parser_emits_complete_messages_and_keeps_tail() -> None:
     communicator._callback = callback
     packet = _packet()
 
-    communicator._read_buffer = b"garbage" + packet + b"tail"
+    partial = packet[:10]
+    communicator._read_buffer = b"garbage" + packet + b"noise" + partial
     communicator._parse()
 
     callback.assert_called_once()
     assert callback.call_args.args[0].group(0) == packet
-    assert communicator._read_buffer == b"tail"
+    # Only the partial frame starting at STX is kept for the next read.
+    assert communicator._read_buffer == partial
+
+    communicator._read_buffer += packet[10:]
+    communicator._parse()
+    assert callback.call_count == 2
+    assert communicator._read_buffer == b""
+
+
+def test_parser_drops_bytes_that_cannot_form_a_frame() -> None:
+    communicator = _communicator()
+    communicator._callback = MagicMock()
+    communicator._read_buffer = b""
+
+    for _ in range(1000):
+        communicator._read_buffer += b"\x00noise" * 10
+        communicator._parse()
+    assert communicator._read_buffer == b""
+
+    # A stray STX followed by more than a frame of junk is dropped too.
+    communicator._read_buffer = b"\x02" + b"Z" * 100
+    communicator._parse()
+    assert communicator._read_buffer == b""
 
 
 def test_debug_packet_log_handles_known_and_unknown_commands(

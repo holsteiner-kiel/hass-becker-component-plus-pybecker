@@ -33,6 +33,7 @@ from .const import (
     REMOTE_PACKET_EVENT,
     SUBENTRY_TYPE_COVER,
 )
+from .db_transfer import KNOWN_UNIT_CODES
 from .http import BeckerDownloadView
 from .pybecker.becker import Becker
 from .pybecker.becker_helper import BeckerConnectionError
@@ -238,11 +239,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def handle_log_units(call: ServiceCall) -> None:
         """Log all paired units."""
         units = await _get_becker(hass, call.data.get(CONF_ENTRY_ID)).list_units()
-        # Apparently the SQLite results are implicitly returned in unit id
-        # order. This seems pretty dirty to rely on.
+        # Only configured units are returned, so the unit id comes from the
+        # fixed code order (the database rows are created in that order).
         _LOGGER.info("Configured Becker centronic units:")
-        for unit_id, row in enumerate(units, start=1):
+        for row in units:
             unit_code, increment = row[0:2]
+            unit_id = KNOWN_UNIT_CODES.index(unit_code) + 1
             _LOGGER.info(
                 "Unit id %d, unit code %s, increment %d", unit_id, unit_code, increment
             )
@@ -300,6 +302,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: BeckerConfigEntry) -> bo
             f"Could not connect to Becker stick on {entry.data[CONF_DEVICE]}: {err}"
         ) from err
     entry.runtime_data = becker
+    try:
+        await _async_finish_setup(hass, entry, becker)
+    except BaseException:
+        # Setup failed after the stick was opened: stop the communicator
+        # thread and release the port so a retry can open it again.
+        await hass.async_add_executor_job(becker.close)
+        raise
+    return True
+
+
+async def _async_finish_setup(
+    hass: HomeAssistant, entry: BeckerConfigEntry, becker: Becker
+) -> None:
+    """Sync units, register devices and forward platforms."""
     _clear_setup_repairs(hass, entry)
 
     # Initialize all units of configured covers in the db file and send a
@@ -308,9 +324,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: BeckerConfigEntry) -> bo
     for subentry in entry.subentries.values():
         if subentry.subentry_type != SUBENTRY_TYPE_COVER:
             continue
-        await becker.init_unconfigured_unit(
-            subentry.data[CONF_CHANNEL], name=subentry.title
-        )
+        try:
+            await becker.init_unconfigured_unit(
+                subentry.data[CONF_CHANNEL], name=subentry.title
+            )
+        except BeckerConnectionError as err:
+            raise ConfigEntryNotReady(
+                f"Could not initialize Becker unit for {subentry.title}: {err}"
+            ) from err
 
     device_registry = dr.async_get(hass)
     device_registry.async_get_or_create(
@@ -324,7 +345,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: BeckerConfigEntry) -> bo
 
     entry.async_on_unload(entry.add_update_listener(_update_listener))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: BeckerConfigEntry) -> bool:

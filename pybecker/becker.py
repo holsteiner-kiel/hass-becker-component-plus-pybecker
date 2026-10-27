@@ -169,6 +169,7 @@ class Becker:
                 code = generate_code(channel, unit, COMMAND_DOWN)
 
             unit[1] += 1
+            self.db.set_unit(unit, test)
             await self.write([code])
 
             await asyncio.sleep(int(mt.group(2)))
@@ -176,16 +177,21 @@ class Becker:
             # stop moving
             code = generate_code(channel, unit, COMMAND_HALT)
             unit[1] += 1
+            self.db.set_unit(unit, test)
             await self.write([code])
-        else:
-            unit[1] += 1
+            return
+
+        unit[1] += 1
 
         # append the release button code
         #codes.append(generate_code(channel, unit, 0))
         #unit[1] += 1
 
-        await self.write(codes)
+        # Persist the counter before queueing: once a code may reach the
+        # motor, its rolling-code value must never be reused, even if
+        # queueing fails part-way through a multi-packet command.
         self.db.set_unit(unit, test)
+        await self.write(codes)
 
     async def send(self, channel, cmd, test=False):
         """Serialize RF commands with database import/export operations."""
